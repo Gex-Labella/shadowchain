@@ -1,0 +1,114 @@
+[package]
+name = "shadowchain-runtime"
+version = "0.1.0"
+authors = ["Shadow Chain Team"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
+
+# Substrate primitives
+sp-api = { version = "4.0.0-dev", default-features = false }
+sp-block-builder = { version = "4.0.0-dev", default-features = false }
+sp-consensus-aura = { version = "0.10.0-dev", default-features = false }
+sp-consensus-grandpa = { version = "4.0.0-dev", default-features = false }
+sp-core = { version = "21.0.0", default-features = false }
+sp-inherents = { version = "4.0.0-dev", default-features = false }
+sp-offchain = { version = "4.0.0-dev", default-features = false }
+sp-runtime = { version = "24.0.0", default-features = false }
+sp-session = { version = "4.0.0-dev", default-features = false }
+sp-std = { version = "8.0.0", default-features = false }
+sp-transaction-pool = { version = "4.0.0-dev", default-features = false }
+sp-version = { version = "22.0.0", default-features = false }
+sp-io = { version = "23.0.0", default-features = false }
+
+# Frame dependencies
+frame-executive = { version = "4.0.0-dev", default-features = false }
+frame-support = { version = "4.0.0-dev", default-features = false }
+frame-system = { version = "4.0.0-dev", default-features = false }
+frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, optional = true }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, optional = true }
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false }
+frame-try-runtime = { version = "0.10.0-dev", default-features = false, optional = true }
+
+# Pallets
+pallet-aura = { version = "4.0.0-dev", default-features = false }
+pallet-balances = { version = "4.0.0-dev", default-features = false }
+pallet-grandpa = { version = "4.0.0-dev", default-features = false }
+pallet-sudo = { version = "4.0.0-dev", default-features = false }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false }
+
+# Local dependencies
+pallet-shadow = { path = "../pallets/shadow", default-features = false }
+
+[build-dependencies]
+substrate-wasm-builder = { version = "5.0.0-dev", optional = true }
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "scale-info/std",
+    "sp-api/std",
+    "sp-block-builder/std",
+    "sp-consensus-aura/std",
+    "sp-consensus-grandpa/std",
+    "sp-core/std",
+    "sp-inherents/std",
+    "sp-offchain/std",
+    "sp-runtime/std",
+    "sp-session/std",
+    "sp-std/std",
+    "sp-transaction-pool/std",
+    "sp-version/std",
+    "sp-io/std",
+    "frame-executive/std",
+    "frame-support/std",
+    "frame-system/std",
+    "frame-system-benchmarking?/std",
+    "frame-benchmarking?/std",
+    "frame-system-rpc-runtime-api/std",
+    "frame-try-runtime?/std",
+    "pallet-aura/std",
+    "pallet-balances/std",
+    "pallet-grandpa/std",
+    "pallet-sudo/std",
+    "pallet-timestamp/std",
+    "pallet-transaction-payment/std",
+    "pallet-transaction-payment-rpc-runtime-api/std",
+    "pallet-shadow/std",
+    "substrate-wasm-builder",
+]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system-benchmarking/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "pallet-balances/runtime-benchmarks",
+    "pallet-grandpa/runtime-benchmarks",
+    "pallet-timestamp/runtime-benchmarks",
+    "pallet-shadow/runtime-benchmarks",
+    "sp-runtime/runtime-benchmarks",
+]
+try-runtime = [
+    "frame-executive/try-runtime",
+    "frame-try-runtime/try-runtime",
+    "frame-system/try-runtime",
+    "frame-support/try-runtime",
+    "pallet-aura/try-runtime",
+    "pallet-balances/try-runtime",
+    "pallet-grandpa/try-runtime",
+    "pallet-sudo/try-runtime",
+    "pallet-timestamp/try-runtime",
+    "pallet-transaction-payment/try-runtime",
+    "pallet-shadow/try-runtime",
+    "sp-runtime/try-runtime",
+]

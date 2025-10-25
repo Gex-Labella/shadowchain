@@ -1,0 +1,125 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Production builds
+dist/
+build/
+*/dist/
+*/build/
+.next/
+out/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Temporary files
+*.log
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
+
+# TypeScript
+*.tsbuildinfo
+.tsc_cache/
+
+# React
+.eslintcache
+
+# Rust / Substrate
+substrate-node/target/
+substrate-node/Cargo.lock
+substrate-node/.cargo/
+*.orig
+*.rej
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!terraform.tfvars.example
+infra/terraform/.terraform/
+infra/terraform/*.tfplan
+infra/terraform/terraform.tfstate*
+
+# IPFS
+.ipfs/
+ipfs-data/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Package manager locks (keep these in version control)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# OS files
+Thumbs.db
+Desktop.ini
+.Spotlight-V100
+.Trashes
+
+# Backup files
+*.backup
+*.old
+*~
+
+# AWS
+.aws/
+aws-exports.js
+
+# Secrets
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
+private/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Misc
+.notes/
+TODO.md
+scratch/

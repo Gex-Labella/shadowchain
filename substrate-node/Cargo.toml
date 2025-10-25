@@ -1,0 +1,77 @@
+[workspace]
+members = [
+    "node",
+    "pallets/shadow",
+    "runtime",
+]
+
+[profile.release]
+panic = "unwind"
+
+[workspace.dependencies]
+# Substrate dependencies
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
+scale-info = { version = "2.10.0", default-features = false }
+log = { version = "0.4.17", default-features = false }
+serde = { version = "1.0.193", default-features = false }
+
+# Substrate primitives
+sp-core = { version = "21.0.0", default-features = false }
+sp-runtime = { version = "24.0.0", default-features = false }
+sp-std = { version = "8.0.0", default-features = false }
+sp-io = { version = "23.0.0", default-features = false }
+sp-api = { version = "4.0.0-dev", default-features = false }
+sp-blockchain = { version = "4.0.0-dev" }
+sp-block-builder = { version = "4.0.0-dev", default-features = false }
+sp-transaction-pool = { version = "4.0.0-dev", default-features = false }
+sp-offchain = { version = "4.0.0-dev", default-features = false }
+sp-session = { version = "4.0.0-dev", default-features = false }
+sp-consensus = { version = "0.10.0-dev" }
+sp-consensus-aura = { version = "0.10.0-dev", default-features = false }
+sp-consensus-grandpa = { version = "4.0.0-dev", default-features = false }
+sp-keystore = { version = "0.27.0" }
+sp-keyring = { version = "24.0.0" }
+sp-timestamp = { version = "4.0.0-dev", default-features = false }
+sp-inherents = { version = "4.0.0-dev", default-features = false }
+sp-version = { version = "22.0.0", default-features = false }
+
+# Frame dependencies
+frame-support = { version = "4.0.0-dev", default-features = false }
+frame-system = { version = "4.0.0-dev", default-features = false }
+frame-executive = { version = "4.0.0-dev", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false }
+frame-benchmarking-cli = { version = "4.0.0-dev" }
+frame-system-benchmarking = { version = "4.0.0-dev", default-features = false }
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false }
+
+# Pallets
+pallet-aura = { version = "4.0.0-dev", default-features = false }
+pallet-balances = { version = "4.0.0-dev", default-features = false }
+pallet-grandpa = { version = "4.0.0-dev", default-features = false }
+pallet-sudo = { version = "4.0.0-dev", default-features = false }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false }
+
+# Client dependencies
+sc-cli = { version = "0.10.0-dev" }
+sc-client-api = { version = "4.0.0-dev" }
+sc-consensus = { version = "0.10.0-dev" }
+sc-consensus-aura = { version = "0.10.0-dev" }
+sc-consensus-grandpa = { version = "0.10.0-dev" }
+sc-executor = { version = "0.10.0-dev" }
+sc-keystore = { version = "4.0.0-dev" }
+sc-network = { version = "0.10.0-dev" }
+sc-rpc = { version = "4.0.0-dev" }
+sc-rpc-api = { version = "0.10.0-dev" }
+sc-service = { version = "0.10.0-dev" }
+sc-telemetry = { version = "4.0.0-dev" }
+sc-transaction-pool = { version = "4.0.0-dev" }
+sc-transaction-pool-api = { version = "4.0.0-dev" }
+sc-basic-authorship = { version = "0.10.0-dev" }
+sc-offchain = { version = "4.0.0-dev" }
+
+# Other dependencies
+clap = { version = "4.2.5", features = ["derive"] }
+futures = { version = "0.3.21" }
+jsonrpsee = { version = "0.16.2", features = ["server"] }

@@ -1,0 +1,76 @@
+[package]
+name = "shadowchain-node"
+version = "0.1.0"
+authors = ["Shadow Chain Team"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[[bin]]
+name = "shadowchain-node"
+
+[dependencies]
+clap = { version = "4.0.9", features = ["derive"] }
+futures = { version = "0.3.21", features = ["thread-pool"]}
+serde = { version = "1.0.136", features = ["derive"] }
+jsonrpsee = { version = "0.16.2", features = ["server"] }
+
+# Substrate client dependencies
+sc-cli = { version = "0.10.0-dev" }
+sp-core = { version = "21.0.0" }
+sc-executor = { version = "0.10.0-dev" }
+sc-network = { version = "0.10.0-dev" }
+sc-network-sync = { version = "0.10.0-dev" }
+sc-rpc = { version = "4.0.0-dev" }
+sc-service = { version = "0.10.0-dev" }
+sc-telemetry = { version = "4.0.0-dev" }
+sc-keystore = { version = "4.0.0-dev" }
+sc-transaction-pool = { version = "4.0.0-dev" }
+sc-transaction-pool-api = { version = "4.0.0-dev" }
+sc-offchain = { version = "4.0.0-dev" }
+sc-consensus = { version = "0.10.0-dev" }
+sc-consensus-aura = { version = "0.10.0-dev" }
+sp-consensus-aura = { version = "0.10.0-dev" }
+sc-consensus-grandpa = { version = "0.10.0-dev" }
+sp-consensus-grandpa = { version = "4.0.0-dev" }
+sc-client-api = { version = "4.0.0-dev" }
+sp-runtime = { version = "24.0.0" }
+sp-io = { version = "23.0.0" }
+sp-timestamp = { version = "4.0.0-dev" }
+sp-inherents = { version = "4.0.0-dev" }
+sp-keyring = { version = "24.0.0" }
+frame-system = { version = "4.0.0-dev" }
+pallet-transaction-payment = { version = "4.0.0-dev" }
+pallet-transaction-payment-rpc = { version = "4.0.0-dev" }
+
+# These dependencies are used for the node's RPCs
+frame-system-rpc-runtime-api = { version = "4.0.0-dev" }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev" }
+
+# These dependencies are used for runtime benchmarking
+frame-benchmarking = { version = "4.0.0-dev" }
+frame-benchmarking-cli = { version = "4.0.0-dev" }
+
+# Local dependencies
+shadowchain-runtime = { path = "../runtime" }
+
+# CLI-specific dependencies
+try-runtime-cli = { version = "0.10.0-dev", optional = true }
+
+[build-dependencies]
+substrate-build-script-utils = { version = "3.0.0" }
+
+[features]
+default = []
+# Dependencies that are only required if runtime benchmarking should be build.
+runtime-benchmarks = [
+    "shadowchain-runtime/runtime-benchmarks",
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-benchmarking-cli/runtime-benchmarks",
+]
+# Enable features that allow the runtime to be tried and debugged. Name might be subject to change
+# in the near future.
+try-runtime = ["shadowchain-runtime/try-runtime", "try-runtime-cli"]

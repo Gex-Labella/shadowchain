@@ -1,0 +1,123 @@
+# Shadow Chain Infrastructure Configuration
+# Copy this file to terraform.tfvars and update with your values
+
+# General Configuration
+aws_region  = "us-east-1"
+environment = "dev"  # Options: dev, staging, prod
+az_count    = 2
+
+# Domain Configuration (REQUIRED)
+frontend_domain_name = "shadowchain.example.com"
+
+# ACM Certificate ARN (REQUIRED for HTTPS)
+# Create certificate in AWS Certificate Manager first
+acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Enable Route53 DNS records creation
+create_route53_records = false
+
+# Networking Configuration
+vpc_cidr        = "10.0.0.0/16"
+public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnets = ["10.0.11.0/24", "10.0.12.0/24"]
+
+# NAT Gateway Configuration
+enable_nat_gateway = true
+single_nat_gateway = true  # Set to false for production (HA)
+
+# ECR Configuration
+ecr_image_tag_mutability = "MUTABLE"
+ecr_scan_on_push        = true
+
+# S3 Configuration
+s3_enable_versioning    = true
+s3_enable_encryption    = true
+s3_enable_public_access = false
+
+# RDS PostgreSQL Configuration
+enable_rds             = true
+rds_instance_class     = "db.t3.micro"
+rds_allocated_storage  = 20
+rds_storage_encrypted  = true
+rds_database_name      = "shadowchain"
+rds_master_username    = "shadowadmin"
+rds_backup_retention_period = 7
+rds_skip_final_snapshot     = true   # Set to false for production
+rds_deletion_protection     = false  # Set to true for production
+
+# Redis Cache Configuration
+enable_redis             = true
+redis_node_type         = "cache.t3.micro"
+redis_num_cache_nodes   = 1
+redis_automatic_failover = false
+redis_at_rest_encryption = true
+redis_transit_encryption = true
+
+# ECS Service Configuration
+# Docker Image Tags
+backend_image_tag   = "latest"
+frontend_image_tag  = "latest"
+substrate_image_tag = "latest"
+ipfs_image_tag     = "latest"
+
+# Task Resources (CPU: 256, 512, 1024, 2048, 4096)
+backend_cpu    = 512
+backend_memory = 1024
+frontend_cpu   = 256
+frontend_memory = 512
+substrate_cpu   = 1024
+substrate_memory = 2048
+ipfs_cpu       = 512
+ipfs_memory    = 1024
+
+# Service Scaling
+backend_desired_count   = 2
+frontend_desired_count  = 2
+substrate_desired_count = 1
+ipfs_desired_count     = 1  # Set to 0 if using Web3.storage
+
+# Auto Scaling
+enable_autoscaling = true
+backend_min_capacity   = 1
+backend_max_capacity   = 5
+frontend_min_capacity  = 1
+frontend_max_capacity  = 5
+target_cpu_utilization    = 70
+target_memory_utilization = 80
+
+# CDN Configuration
+enable_cloudfront = false  # Enable for production
+
+# WAF Configuration
+enable_waf     = false  # Enable for production
+waf_rate_limit = 2000
+waf_ip_allowlist = []  # Add trusted IPs if needed
+waf_ip_blocklist = []  # Add blocked IPs if needed
+
+# IPFS Configuration
+use_web3_storage = false  # Set to true to use Web3.storage instead of self-hosted IPFS
+
+# Secrets (leave empty to configure in AWS Secrets Manager after deployment)
+enable_secrets_manager = true
+github_token              = ""  # Add via AWS Console after deployment
+twitter_bearer_token      = ""  # Add via AWS Console after deployment
+web3_storage_token        = ""  # Add via AWS Console after deployment
+backend_signer_private_key = ""  # Add via AWS Console after deployment
+
+# Monitoring Configuration
+alarm_email_endpoint   = "your-email@example.com"
+cpu_alarm_threshold    = 80
+memory_alarm_threshold = 80
+error_rate_threshold   = 5
+
+# Backup Configuration
+enable_backup         = true
+backup_retention_days = 30
+backup_schedule      = "cron(0 3 * * ? *)"  # Daily at 3 AM UTC
+
+# Additional Tags
+additional_tags = {
+  Owner       = "YourName"
+  CostCenter  = "Engineering"
+  Compliance  = "GDPR"
+}
