@@ -70,7 +70,7 @@ A production-ready full-stack project that mirrors your Web2 activity (GitHub co
 
 1. **Clone and setup**:
 ```bash
-git clone https://github.com/yourusername/shadowchain.git
+git clone https://github.com/tufstraka/shadowchain.git
 cd shadowchain
 make install-deps
 ```
