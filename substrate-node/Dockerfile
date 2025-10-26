@@ -16,8 +16,9 @@ COPY node ./node
 COPY pallets ./pallets
 COPY runtime ./runtime
 
-# Install wasm target
-RUN rustup target add wasm32-unknown-unknown
+# Install wasm target and rust-src component (required for WASM runtime compilation)
+RUN rustup target add wasm32-unknown-unknown && \
+    rustup component add rust-src
 
 # Build the node in release mode
 RUN cargo build --release
