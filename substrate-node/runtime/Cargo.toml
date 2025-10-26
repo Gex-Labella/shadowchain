@@ -50,7 +50,7 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 pallet-shadow = { path = "../pallets/shadow", default-features = false }
 
 [build-dependencies]
-substrate-wasm-builder = { workspace = true, optional = true }
+substrate-wasm-builder = { workspace = true }
 
 [features]
 default = ["std"]
@@ -85,7 +85,6 @@ std = [
     "pallet-transaction-payment/std",
     "pallet-transaction-payment-rpc-runtime-api/std",
     "pallet-shadow/std",
-    "substrate-wasm-builder",
 ]
 runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",
