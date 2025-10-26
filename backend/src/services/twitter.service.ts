@@ -140,7 +140,8 @@ export class TwitterService {
    */
   async getRateLimitStatus(): Promise<any> {
     try {
-      const limits = await this.client.v2.getRateLimitStatus();
+      // twitter-api-v2 provides the last known rate limit status on the client instance
+      const limits = this.client.getLastRateLimitStatus('/2/users/me');
       return limits;
     } catch (error) {
       logger.error({ error }, 'Failed to get rate limit status');

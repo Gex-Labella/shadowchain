@@ -118,7 +118,7 @@ RATE_LIMIT_WINDOW=900000   # 15 minutes
 6. [ ] Post-mortem analysis
 
 ### Contact
-Report security vulnerabilities to: security@shadowchain.io
+Report security vulnerabilities to: support@locsafe.org
 PGP Key: [Public key fingerprint]
 
 ## Compliance
@@ -178,4 +178,4 @@ PGP Key: [Public key fingerprint]
 - v1.1.0 - Added rate limiting
 - v1.2.0 - Enhanced key derivation
 
-Last Updated: 2024-01-01
+Last Updated: 26th October 2025

@@ -231,8 +231,7 @@ export class IPFSService {
       return {
         id: id.id,
         addresses: id.addresses,
-        version: version.version,
-        protocol: version.protocol,
+        version: version.version
       };
     } catch (error) {
       logger.error({ error }, 'Failed to get IPFS node info');
