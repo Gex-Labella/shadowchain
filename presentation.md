@@ -103,8 +103,8 @@
 ### 🚀 **Try It Now**
 ```bash
 # Clone and run locally
-git clone https://github.com/yourusername/shadow-chain
-cd shadow-chain
+git clone https://github.com/tufstraka/Shadowchain
+cd Shadowchain
 make dev
 
 # Access at http://localhost:3000
