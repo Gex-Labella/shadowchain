@@ -23,11 +23,11 @@ sc-cli = { workspace = true }
 sp-core = { workspace = true }
 sc-executor = { workspace = true }
 sc-network = { workspace = true }
-sc-network-sync = { git = "https://github.com/paritytech/polkadot-sdk", branch = "polkadot-stable2509" }
+sc-network-sync = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
 sc-rpc = { workspace = true }
 sc-service = { workspace = true }
 sc-telemetry = { workspace = true }
-sc-keystore = { git = "https://github.com/paritytech/polkadot-sdk", branch = "polkadot-stable2509" }
+sc-keystore = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
 sc-transaction-pool = { workspace = true }
 sc-transaction-pool-api = { workspace = true }
 sc-offchain = { workspace = true }
@@ -44,7 +44,7 @@ sp-inherents = { workspace = true }
 sp-keyring = { workspace = true }
 frame-system = { workspace = true }
 pallet-transaction-payment = { workspace = true }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/polkadot-sdk", branch = "polkadot-stable2509" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
 
 # These dependencies are used for the node's RPCs
 frame-system-rpc-runtime-api = { workspace = true }
@@ -52,13 +52,13 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 
 # These dependencies are used for runtime benchmarking
 frame-benchmarking = { workspace = true }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/polkadot-sdk", branch = "polkadot-stable2509" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
 
 # Local dependencies
 shadowchain-runtime = { path = "../runtime" }
 
 # CLI-specific dependencies
-try-runtime-cli = { git = "https://github.com/paritytech/polkadot-sdk", branch = "polkadot-stable2509", optional = true }
+try-runtime-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", optional = true }
 
 [build-dependencies]
 substrate-build-script-utils = { workspace = true }
