@@ -20,7 +20,7 @@ COPY runtime ./runtime
 RUN rustup target add wasm32-unknown-unknown
 
 # Build the node in release mode
-RUN cargo build --release --locked
+RUN cargo build --release
 
 # Runtime stage
 FROM ubuntu:22.04
