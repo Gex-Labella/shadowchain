@@ -10,9 +10,10 @@ Shadow Chain is a privacy-preserving Web2-to-Web3 bridge that automatically mirr
 Custom Polkadot SDK blockchain with `pallet-shadow` for storing encrypted metadata and IPFS references.
 
 ### 2. Backend Services
-- **Fetcher Service**: Polls Web2 APIs and orchestrates encryption/storage
+- **Fetcher Service**: Polls Web2 APIs and orchestrates encryption/storage (supports OAuth and centralized approaches)
 - **REST API**: Provides frontend access to shadow items
 - **IPFS Client**: Manages encrypted content storage
+- **OAuth Service**: Manages user OAuth connections for GitHub (X/Twitter coming soon)
 
 ### 3. Frontend Application
 React-based dashboard for wallet connection, consent management, and content decryption.
@@ -60,7 +61,30 @@ Fetcher         GitHub API      Crypto Module      IPFS          Substrate
   │◄─────────────────────Event Emitted───────────────────────────────
 ```
 
-### 3. Encryption Flow
+### 3. GitHub OAuth Flow 
+
+```
+User          Frontend        Backend         GitHub OAuth      Storage
+ │               │               │                  │              │
+ │──Connect GitHub►              │                  │              │
+ │               │──Request Auth─►                  │              │
+ │               │◄─Auth URL─────                   │              │
+ │               │               │                  │              │
+ │◄─Redirect──────              │                  │              │
+ │────────────────────Authorize─────────────────────►              │
+ │◄───────────────────Redirect + Code───────────────               │
+ │               │               │                  │              │
+ │               │──Code─────────►                  │              │
+ │               │               │──Exchange Code────►              │
+ │               │               │◄─Access Token─────              │
+ │               │               │                  │              │
+ │               │               │──Store Token──────────────────────►
+ │               │               │◄─Token Stored─────────────────────
+ │               │◄─Success──────                   │              │
+ │◄─Connected─────               │                  │              │
+```
+
+### 4. Encryption Flow
 
 ```
 Content         Crypto Module        User Public Key      Result
@@ -84,7 +108,7 @@ Content         Crypto Module        User Public Key      Result
   │                  │                     ├─Nonce─────────►
 ```
 
-### 4. IPFS Pinning Flow
+### 5. IPFS Pinning Flow
 
 ```
 Backend          IPFS Node        Web3.Storage       Result
@@ -101,7 +125,7 @@ Backend          IPFS Node        Web3.Storage       Result
   │                 │                  ├─Distributed──►
 ```
 
-### 5. Frontend Decrypt Flow
+### 6. Frontend Decrypt Flow
 
 ```
 User          Frontend       Polkadot.js     Substrate      IPFS       Crypto
@@ -172,6 +196,13 @@ GET  /api/health
 GET  /api/shadow/items/:address
 POST /api/shadow/sync
 GET  /api/shadow/consent/:address
+
+# OAuth Endpoints
+POST /api/auth/github/connect
+GET  /api/auth/github/callback
+GET  /api/auth/connections/:address
+DELETE /api/auth/connections/:address/:service
+GET  /api/auth/github/status/:address
 ```
 
 ### WebSocket RPC
@@ -256,14 +287,34 @@ shadow.getItemCount(accountId): u32
 2. Re-pin IPFS content from backup pins
 3. Replay failed syncs from queue
 
+## OAuth Implementation Details
+
+### Token Storage
+- OAuth tokens are stored in memory (demo) or encrypted database (production)
+- Tokens are associated with user's Polkadot address
+- No raw tokens are exposed via API
+
+### Multi-User Support
+- Fetcher service checks for user-specific OAuth tokens
+- Falls back to centralized approach if no token exists
+- Each user's repositories are fetched independently
+
+### Security Considerations
+- OAuth state parameter for CSRF protection
+- Tokens encrypted at rest
+- Automatic token validation before use
+- Revocation support
+
 ## Future Enhancements
 
 ### Phase 2
-- Support for additional platforms (LinkedIn, Reddit)
+- Support for additional platforms (LinkedIn, Reddit, X/Twitter OAuth)
 - Selective sync filters
 - Social recovery for encryption keys
+- OAuth token refresh automation
 
-### Phase 3  
+### Phase 3
 - Cross-chain bridges
 - Decentralized fetcher network
 - Zero-knowledge proofs for private queries
+- Federated OAuth providers

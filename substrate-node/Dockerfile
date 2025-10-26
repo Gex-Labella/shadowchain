@@ -1,38 +1,39 @@
-# Substrate Node Dockerfile for Shadow Chain
-
 # Build stage
-FROM rust:latest as builder
-
-# Install required packages
-RUN apt-get update && \
-    apt-get install -y \
-    clang \
-    libclang-dev \
-    cmake \
-    protobuf-compiler && \
-    rm -rf /var/lib/apt/lists/*
+FROM rust:1.88.0 as builder
 
 WORKDIR /shadowchain
 
-# Copy source code
-COPY . .
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    clang \
+    libclang-dev \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy workspace files
+COPY Cargo.toml ./
+COPY node ./node
+COPY pallets ./pallets
+COPY runtime ./runtime
+
+# Install wasm target
+RUN rustup target add wasm32-unknown-unknown
 
 # Build the node in release mode
-RUN cargo build --release
+RUN cargo build --release --locked
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM ubuntu:22.04
 
-# Install required runtime dependencies
-RUN apt-get update && \
-    apt-get install -y \
-    ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the binary from builder
+# Copy the built binary
 COPY --from=builder /shadowchain/target/release/shadowchain-node /usr/local/bin/shadowchain-node
 
-# Create a non-root user
+# Create user
 RUN useradd -m -u 1000 -U -s /bin/sh shadowchain
 
 # Create data directory
@@ -41,10 +42,10 @@ RUN mkdir -p /data && chown shadowchain:shadowchain /data
 USER shadowchain
 
 # Expose ports
-EXPOSE 9944 9933 30333 9615
+EXPOSE 9944 9933 9615 30333
 
-# Volume for chain data
-VOLUME ["/data"]
+# Set the entrypoint
+ENTRYPOINT ["/usr/local/bin/shadowchain-node"]
 
-# Start the node
-ENTRYPOINT ["shadowchain-node"]
+# Default command
+CMD ["--dev", "--ws-external", "--rpc-external", "--rpc-cors=all", "--base-path=/data"]
