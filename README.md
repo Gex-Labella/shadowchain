@@ -42,7 +42,8 @@ A production-ready full-stack project that mirrors your Web2 activity (GitHub co
 ## Data Flow
 
 1. **Fetcher Service** polls GitHub and Twitter APIs for new content
-2. **Encryption**: 
+   - Supports both centralized approach (configured API keys) and OAuth (user connections)
+2. **Encryption**:
    - Generate per-item symmetric key (XSalsa20-Poly1305)
    - Encrypt content with symmetric key
    - Encrypt symmetric key with user's public key
@@ -79,9 +80,20 @@ make install-deps
 ```bash
 cp .env.example .env
 # Edit .env with your API keys:
-# - GITHUB_TOKEN
+# - GITHUB_TOKEN (optional - for centralized approach)
 # - TWITTER_BEARER_TOKEN
+# - GITHUB_CLIENT_ID (for OAuth)
+# - GITHUB_CLIENT_SECRET (for OAuth)
 ```
+
+**Setting up GitHub OAuth App**:
+1. Go to GitHub Settings > Developer settings > OAuth Apps
+2. Click "New OAuth App"
+3. Fill in:
+   - Application name: Shadow Chain
+   - Homepage URL: http://localhost:3000
+   - Authorization callback URL: http://localhost:3001/api/auth/github/callback
+4. Copy Client ID and Secret to `.env`
 
 3. **Start local services**:
 ```bash
@@ -97,6 +109,12 @@ make dev
 - Open http://localhost:3000
 - Connect Polkadot.js extension
 - Sign authorization consent
+
+5. **Connect GitHub account** (optional):
+- Go to Dashboard
+- Click "Connect" next to GitHub
+- Authorize Shadow Chain to access your repositories
+- Your repos will now be synced automatically
 
 5. **Test sync**:
 ```bash
@@ -198,6 +216,13 @@ make deploy-aws
 - `POST /api/shadow/sync` - Trigger manual sync
 - `GET /api/shadow/consent/:address` - Check consent status
 
+**OAuth Endpoints (New)**:
+- `POST /api/auth/github/connect` - Initialize GitHub OAuth flow
+- `GET /api/auth/github/callback` - OAuth callback handler
+- `GET /api/auth/connections/:address` - Get user's connected accounts
+- `DELETE /api/auth/connections/:address/:service` - Revoke connection
+- `GET /api/auth/github/status/:address` - Check GitHub connection status
+
 ### Substrate Extrinsics
 
 - `shadowPallet.submitShadowItem(cid, encryptedKey, metadata)` - Store shadow item
@@ -229,8 +254,16 @@ make test-coverage
 
 See `.env.example` for full list. Key variables:
 
-- `GITHUB_TOKEN` - GitHub Personal Access Token
-- `TWITTER_BEARER_TOKEN` - Twitter API v2 Bearer Token  
+**API Keys (Centralized Approach)**:
+- `GITHUB_TOKEN` - GitHub Personal Access Token (optional)
+- `TWITTER_BEARER_TOKEN` - Twitter API v2 Bearer Token
+
+**OAuth Configuration (User Connections)**:
+- `GITHUB_CLIENT_ID` - GitHub OAuth App Client ID
+- `GITHUB_CLIENT_SECRET` - GitHub OAuth App Client Secret
+- `GITHUB_CALLBACK_URL` - OAuth callback URL
+
+**Infrastructure**:
 - `IPFS_API_URL` - IPFS node endpoint
 - `SUBSTRATE_WS` - Substrate node WebSocket endpoint
 - `PINNING_SERVICE` - 'local' | 'web3storage' | 'pinata'
