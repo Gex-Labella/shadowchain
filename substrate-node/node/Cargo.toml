@@ -57,9 +57,6 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/polkadot-sdk", t
 # Local dependencies
 shadowchain-runtime = { path = "../runtime" }
 
-# CLI-specific dependencies
-try-runtime-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", optional = true }
-
 [build-dependencies]
 substrate-build-script-utils = { workspace = true }
 
@@ -73,4 +70,4 @@ runtime-benchmarks = [
 ]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
-try-runtime = ["shadowchain-runtime/try-runtime", "try-runtime-cli"]
+try-runtime = ["shadowchain-runtime/try-runtime"]
