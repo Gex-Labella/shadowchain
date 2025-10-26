@@ -9,7 +9,7 @@
 
 import * as sodium from 'libsodium-wrappers-sumo';
 import { hexToU8a, u8aToHex, stringToU8a, u8aToString } from '@polkadot/util';
-import { sr25519ToX25519, encodeAddress, decodeAddress } from '@polkadot/util-crypto';
+import { encodeAddress, decodeAddress, blake2AsU8a } from '@polkadot/util-crypto';
 
 // Ensure sodium is ready before any crypto operations
 let sodiumReady = false;
@@ -88,15 +88,19 @@ export async function generateNonce(size: 'secretbox' | 'box' = 'secretbox'): Pr
 export async function deriveEncryptionKeyPair(sr25519PrivateKey: Uint8Array): Promise<EncryptionKeyPair> {
   await ensureSodiumReady();
   
-  // Convert sr25519 private key to X25519
-  const x25519PrivateKey = sr25519ToX25519(sr25519PrivateKey);
+  // Derive X25519 private key from sr25519 using blake2 hash
+  // This is a simplified approach - in production you might want to use proper key derivation
+  const x25519PrivateKey = blake2AsU8a(sr25519PrivateKey, 256);
+  
+  // Ensure the private key is valid for X25519 (32 bytes)
+  const privateKey = x25519PrivateKey.slice(0, 32);
   
   // Derive X25519 public key from private key
-  const x25519PublicKey = sodium.crypto_scalarmult_base(x25519PrivateKey);
+  const x25519PublicKey = sodium.crypto_scalarmult_base(privateKey);
   
   return {
     publicKey: x25519PublicKey,
-    privateKey: x25519PrivateKey
+    privateKey: privateKey
   };
 }
 

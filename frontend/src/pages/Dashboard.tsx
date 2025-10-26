@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useWalletStore } from '../store/wallet';
 import { toast } from 'react-toastify';
 import axios from 'axios';
+import { AccountConnections } from '../components/AccountConnections';
 
 interface ShadowItem {
   id: string;
@@ -100,6 +101,11 @@ const Dashboard: React.FC = () => {
         <p className="text-gray-400">
           View and decrypt your mirrored Web2 activity
         </p>
+      </div>
+
+      {/* Account Connections Section */}
+      <div className="mb-8">
+        <AccountConnections />
       </div>
 
       {items && items.length > 0 ? (

@@ -4,13 +4,14 @@
 
 import cron from 'node-cron';
 import { hexToU8a } from '@polkadot/util';
-import * as crypto from '@shadowchain/crypto';
+import * as crypto from '../../../shared-crypto/dist';
 import config from '../config';
 import { fetcherLogger as logger } from '../utils/logger';
 import { githubService, GitHubContent } from './github.service';
 import { twitterService, TwitterContent } from './twitter.service';
 import { ipfsService, IPFSUploadResult } from './ipfs.service';
 import { substrateService } from './substrate.service';
+import { oauthService } from './oauth.service';
 
 type ContentItem = GitHubContent | TwitterContent;
 
@@ -152,11 +153,31 @@ export class FetcherService {
     // Get last sync time for this user
     const lastSync = this.lastSyncTime.get(userAddress);
     
+    // Check if user has connected GitHub account
+    const hasGitHubToken = await oauthService.hasValidGitHubToken(userAddress);
+    
     // Fetch new content
-    const [githubContent, twitterContent] = await Promise.all([
-      githubService.fetchRecentCommits(lastSync),
-      twitterService.fetchRecentTweets(lastSync),
-    ]);
+    let githubContent: GitHubContent[] = [];
+    let twitterContent: TwitterContent[] = [];
+    
+    if (hasGitHubToken) {
+      // Use user's OAuth token
+      const userToken = await oauthService.getToken(userAddress, 'github');
+      if (userToken) {
+        githubContent = await githubService.fetchRecentCommitsWithToken(
+          userToken.accessToken,
+          lastSync
+        );
+      }
+    } else {
+      // Fallback to centralized approach if configured
+      if (config.githubToken) {
+        githubContent = await githubService.fetchRecentCommits(lastSync);
+      }
+    }
+    
+    // Twitter still uses centralized approach for now
+    twitterContent = await twitterService.fetchRecentTweets(lastSync);
 
     const allContent: ContentItem[] = [...githubContent, ...twitterContent];
     const processedItems: ProcessedItem[] = [];

@@ -86,7 +86,7 @@ shadowRouter.post('/sync', async (req: Request, res: Response, next: NextFunctio
     // Trigger sync
     const processedItems = await fetcherService.syncUser(address);
 
-    res.json({
+    return res.json({
       address,
       synced: processedItems.length,
       items: processedItems,
@@ -122,7 +122,7 @@ shadowRouter.post('/decrypt', async (req: Request, res: Response, next: NextFunc
     // Retrieve content from IPFS
     const ipfsContent = await ipfsService.retrieve(cid);
     
-    res.json({
+    return res.json({
       cid,
       content: ipfsContent.toString('base64'),
       size: ipfsContent.length,

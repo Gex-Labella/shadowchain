@@ -28,9 +28,14 @@ interface Config {
   pinataApiKey?: string;
   pinataSecretKey?: string;
   
-  // GitHub
+  // GitHub (Legacy - centralized approach)
   githubToken: string;
   githubRepos: string[];
+  
+  // GitHub OAuth (New - user connections)
+  githubClientId: string;
+  githubClientSecret: string;
+  githubCallbackUrl: string;
   
   // Twitter
   twitterBearerToken: string;
@@ -81,9 +86,14 @@ const config: Config = {
   pinataApiKey: process.env.PINATA_API_KEY,
   pinataSecretKey: process.env.PINATA_SECRET_KEY,
   
-  // GitHub
+  // GitHub (Legacy - centralized approach)
   githubToken: process.env.GITHUB_TOKEN || '',
   githubRepos: process.env.GITHUB_REPOS?.split(',').map(r => r.trim()) || [],
+  
+  // GitHub OAuth (New - user connections)
+  githubClientId: process.env.GITHUB_CLIENT_ID || '',
+  githubClientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+  githubCallbackUrl: process.env.GITHUB_CALLBACK_URL || 'http://localhost:3001/api/auth/github/callback',
   
   // Twitter
   twitterBearerToken: process.env.TWITTER_BEARER_TOKEN || '',

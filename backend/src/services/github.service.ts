@@ -54,7 +54,7 @@ export class GitHubService {
   }
 
   /**
-   * Fetch recent commits for configured repositories
+   * Fetch recent commits for configured repositories (legacy centralized approach)
    */
   async fetchRecentCommits(since?: Date): Promise<GitHubContent[]> {
     const allCommits: GitHubContent[] = [];
@@ -69,6 +69,130 @@ export class GitHubService {
     }
 
     return allCommits;
+  }
+
+  /**
+   * Fetch recent commits using user's OAuth token
+   */
+  async fetchRecentCommitsWithToken(accessToken: string, since?: Date): Promise<GitHubContent[]> {
+    const allCommits: GitHubContent[] = [];
+
+    try {
+      // First, get user's repositories
+      const repos = await this.getUserRepositories(accessToken);
+      
+      // Then fetch commits from each repo
+      for (const repo of repos) {
+        try {
+          const commits = await this.fetchRepoCommitsWithToken(
+            repo.full_name,
+            accessToken,
+            since
+          );
+          allCommits.push(...commits);
+        } catch (error) {
+          logger.error({ error, repo: repo.full_name }, 'Failed to fetch commits for repo');
+        }
+      }
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch user repositories');
+    }
+
+    return allCommits;
+  }
+
+  /**
+   * Get user's repositories using OAuth token
+   */
+  private async getUserRepositories(accessToken: string): Promise<any[]> {
+    const response = await axios.get(
+      `${this.baseUrl}/user/repos`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+        params: {
+          per_page: 30,
+          sort: 'pushed',
+          direction: 'desc',
+        },
+      }
+    );
+    return response.data;
+  }
+
+  /**
+   * Fetch commits for a specific repository using OAuth token
+   */
+  private async fetchRepoCommitsWithToken(
+    repo: string,
+    accessToken: string,
+    since?: Date
+  ): Promise<GitHubContent[]> {
+    try {
+      const params: any = {
+        per_page: Math.min(config.maxItemsPerSync, 30),
+      };
+
+      if (since) {
+        params.since = since.toISOString();
+      }
+
+      const response = await axios.get(
+        `${this.baseUrl}/repos/${repo}/commits`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+          params,
+        }
+      );
+
+      const commits: GitHubCommit[] = response.data;
+      const detailedCommits: GitHubContent[] = [];
+
+      // Fetch detailed information for each commit
+      for (const commit of commits) {
+        try {
+          const detailed = await this.fetchCommitDetailsWithToken(
+            repo,
+            commit.sha,
+            accessToken
+          );
+          detailedCommits.push(this.formatCommit(detailed));
+        } catch (error) {
+          logger.error({ error, sha: commit.sha }, 'Failed to fetch commit details');
+        }
+      }
+
+      logger.info({ repo, count: detailedCommits.length }, 'Fetched GitHub commits with OAuth token');
+      return detailedCommits;
+    } catch (error) {
+      logger.error({ error, repo }, 'Failed to fetch repo commits with token');
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch detailed information for a specific commit using OAuth token
+   */
+  private async fetchCommitDetailsWithToken(
+    repo: string,
+    sha: string,
+    accessToken: string
+  ): Promise<GitHubCommit> {
+    const response = await axios.get(
+      `${this.baseUrl}/repos/${repo}/commits/${sha}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      }
+    );
+    return response.data;
   }
 
   /**

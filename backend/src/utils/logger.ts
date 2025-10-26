@@ -36,5 +36,6 @@ export const apiLogger = logger.child({ module: 'api' });
 export const fetcherLogger = logger.child({ module: 'fetcher' });
 export const ipfsLogger = logger.child({ module: 'ipfs' });
 export const substrateLogger = logger.child({ module: 'substrate' });
+export const authLogger = logger.child({ module: 'auth' });
 
 export default logger;

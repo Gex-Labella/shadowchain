@@ -10,6 +10,7 @@ import config from '../config';
 import { apiLogger as logger } from '../utils/logger';
 import { healthRouter } from './routes/health';
 import { shadowRouter } from './routes/shadow';
+import { authRouter } from './routes/auth';
 import { errorHandler } from './middleware/error-handler';
 
 export function createApi(): express.Application {
@@ -58,6 +59,7 @@ export function createApi(): express.Application {
   // Mount routes
   apiRouter.use('/health', healthRouter);
   apiRouter.use('/shadow', shadowRouter);
+  apiRouter.use('/auth', authRouter);
 
   // Mount API router
   app.use('/api', apiRouter);
