@@ -23,15 +23,17 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
-    dispatch::{DispatchError, DispatchResult},
+    dispatch::DispatchResult,
     pallet_prelude::*,
     traits::{Currency, Time},
+    weights::Weight,
     BoundedVec,
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{Hash, Saturating},
+    DispatchError,
     RuntimeDebug,
 };
 use sp_std::{prelude::*, vec::Vec};
@@ -99,8 +101,8 @@ pub mod pallet {
     /// Configure the pallet by specifying the parameters and types on which it depends.
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// The overarching event type
-        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        /// The overarching event type (removed as it's automatically added)
+        // type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
         /// Currency type for potential fees
         type Currency: Currency<Self::AccountId>;
@@ -109,7 +111,7 @@ pub mod pallet {
         type Time: Time<Moment = Self::Moment>;
 
         /// Moment type for timestamps
-        type Moment: Parameter + Default + Copy + MaxEncodedLen + Saturating + TypeInfo;
+        type Moment: Parameter + Default + Copy + MaxEncodedLen + Saturating + TypeInfo + PartialOrd;
 
         /// Maximum length of IPFS CID
         #[pallet::constant]
@@ -224,7 +226,7 @@ pub mod pallet {
         /// - `source`: Content source (GitHub or Twitter)
         /// - `metadata`: Optional metadata
         #[pallet::call_index(0)]
-        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(2, 2))]
+        #[pallet::weight(Weight::from_parts(10_000, 0).saturating_add(T::DbWeight::get().reads_writes(2, 2)))]
         pub fn submit_shadow_item(
             origin: OriginFor<T>,
             cid: Vec<u8>,
@@ -289,7 +291,7 @@ pub mod pallet {
         /// Parameters:
         /// - `item_id`: The ID of the item to delete
         #[pallet::call_index(1)]
-        #[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1, 1))]
+        #[pallet::weight(Weight::from_parts(10_000, 0).saturating_add(T::DbWeight::get().reads_writes(1, 1)))]
         pub fn delete_shadow_item(
             origin: OriginFor<T>,
             item_id: T::Hash,
@@ -324,7 +326,7 @@ pub mod pallet {
         /// - `message_hash`: Hash of the consent message
         /// - `expires_in`: Optional duration until expiry (in moments)
         #[pallet::call_index(2)]
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(Weight::from_parts(10_000, 0).saturating_add(T::DbWeight::get().writes(1)))]
         pub fn grant_consent(
             origin: OriginFor<T>,
             message_hash: T::Hash,
@@ -357,7 +359,7 @@ pub mod pallet {
         ///
         /// The dispatch origin must be signed.
         #[pallet::call_index(3)]
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+        #[pallet::weight(Weight::from_parts(10_000, 0).saturating_add(T::DbWeight::get().writes(1)))]
         pub fn revoke_consent(origin: OriginFor<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
