@@ -54,9 +54,10 @@ type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Con
 
 /// Source of shadow content
 #[derive(Clone, Copy, PartialEq, Eq, RuntimeDebug, Encode, Decode, TypeInfo, MaxEncodedLen)]
-#[codec(mel_bound())]
 pub enum ContentSource {
+    #[codec(index = 0)]
     GitHub,
+    #[codec(index = 1)]
     Twitter,
 }
 
