@@ -154,7 +154,4 @@ make dev
 - GDPR/privacy regulations driving demand
 
 ### 🤝 **Get Involved**
-- **Website**: shadowchain.io
-- **GitHub**: github.com/shadowchain
-- **Twitter**: @shadowchain
-- **Discord**: discord.gg/shadowchain
+- **Website**: shadowchain.locsafe.org

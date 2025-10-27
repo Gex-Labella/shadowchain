@@ -6,30 +6,30 @@ A production-ready full-stack project that mirrors your Web2 activity (GitHub co
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                                   USER BROWSER                                    │
-│  ┌─────────────────┐                                         ┌────────────────┐  │
-│  │ React Frontend  │                                         │ Polkadot.js    │  │
-│  │ (TypeScript)    │◄────────── Wallet Connect ────────────►│ Extension      │  │
-│  └────────┬────────┘                                         └────────────────┘  │
+│                                   USER BROWSER                                  │
+│  ┌─────────────────┐                                         ┌────────────────┐ │
+│  │ React Frontend  │                                         │ Polkadot.js    │ │
+│  │ (TypeScript)    │◄────────── Wallet Connect ────────────► │ Extension      │ │
+│  └────────┬────────┘                                         └────────────────┘ │
 └───────────┼─────────────────────────────────────────────────────────────────────┘
             │
             │ HTTPS/WSS
             │
-┌───────────▼─────────────────────────────────────────────────────────────────────┐
-│                                  BACKEND SERVICES                                │
-│  ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────────┐  │
+┌───────────▼───────────────────────────────────────────────────────────────────┐
+│                                  BACKEND SERVICES                             │
+│  ┌─────────────────┐     ┌──────────────────┐     ┌────────────────────────┐  │
 │  │  REST API       │     │  Fetcher Service │     │  IPFS Integration      │  │
 │  │  (Express.js)   │     │  - GitHub        │     │  - Upload ciphertext   │  │
 │  │                 │◄────┤  - Twitter/X     │────►│  - Pin management      │  │
 │  └─────────────────┘     │  - Encryption    │     │  - CID retrieval       │  │
-│                          └──────────────────┘     └──────────┬──────────────┘  │
-└──────────────────────────────────────┬──────────────────────┼──────────────────┘
+│                          └──────────────────┘     └─────────┬──────────────┘  │
+└──────────────────────────────────────┬──────────────────────┼─────────────────┘
                                        │                      │
                            Extrinsics  │                      │ Store encrypted
                            Submit      │                      │ content
                                        ▼                      ▼
 ┌─────────────────────────────────────────────┐    ┌────────────────────────────┐
-│          SUBSTRATE NODE                      │    │       IPFS NETWORK         │
+│          SUBSTRATE NODE                     │    │       IPFS NETWORK         │
 │  ┌───────────────────────────────────────┐  │    │  ┌──────────────────────┐  │
 │  │  Runtime                              │  │    │  │  Encrypted Payloads  │  │
 │  │  - pallet-shadow                      │  │    │  │  - GitHub commits    │  │
@@ -61,11 +61,12 @@ A production-ready full-stack project that mirrors your Web2 activity (GitHub co
 ## Prerequisites
 
 - Node.js 18.x LTS or later
-- Rust stable (1.70.0 or later)
 - Docker and Docker Compose
 - AWS CLI (for deployment)
 - Terraform (for infrastructure)
 - Polkadot.js browser extension
+
+> **Note**: The Substrate node builds with custom pallet-shadow using Polkadot SDK v1.0.0. Build times may be long on first run.
 
 ## Quick Start (Local Development)
 
