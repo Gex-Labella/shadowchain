@@ -43,7 +43,7 @@ fn submit_shadow_item_works() {
                 account,
                 id: item.id,
                 cid: cid.clone(),
-                source: ContentSource::GitHub,
+                source: 0, // 0 for GitHub
             }
             .into(),
         );

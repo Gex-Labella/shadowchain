@@ -174,7 +174,7 @@ pub mod pallet {
             account: T::AccountId,
             id: T::Hash,
             cid: Vec<u8>,
-            source: ContentSource,
+            source: u8, // 0 for GitHub, 1 for Twitter
         },
 
         /// Shadow item deleted
@@ -280,7 +280,10 @@ pub mod pallet {
                 account: who,
                 id,
                 cid: cid_bounded.into_inner(),
-                source,
+                source: match source {
+                    ContentSource::GitHub => 0,
+                    ContentSource::Twitter => 1,
+                },
             });
 
             Ok(())
