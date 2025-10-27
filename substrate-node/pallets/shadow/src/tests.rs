@@ -19,7 +19,7 @@ fn submit_shadow_item_works() {
             RuntimeOrigin::signed(account),
             cid.clone(),
             encrypted_key.clone(),
-            ContentSource::GitHub,
+            0, // 0 for GitHub
             metadata.clone()
         ));
 
@@ -60,7 +60,7 @@ fn submit_multiple_items_works() {
             RuntimeOrigin::signed(account),
             b"CID1".to_vec(),
             b"key1".to_vec(),
-            ContentSource::GitHub,
+            0, // GitHub
             vec![]
         ));
 
@@ -69,7 +69,7 @@ fn submit_multiple_items_works() {
             RuntimeOrigin::signed(account),
             b"CID2".to_vec(),
             b"key2".to_vec(),
-            ContentSource::Twitter,
+            1, // Twitter
             vec![]
         ));
 
@@ -91,7 +91,7 @@ fn submit_shadow_item_cid_too_long() {
                 RuntimeOrigin::signed(account),
                 long_cid,
                 b"key".to_vec(),
-                ContentSource::GitHub,
+                0, // GitHub
                 vec![]
             ),
             Error::<Test>::CidTooLong
@@ -110,7 +110,7 @@ fn submit_shadow_item_key_too_long() {
                 RuntimeOrigin::signed(account),
                 b"CID".to_vec(),
                 long_key,
-                ContentSource::GitHub,
+                0, // GitHub
                 vec![]
             ),
             Error::<Test>::KeyTooLong
@@ -129,7 +129,7 @@ fn submit_shadow_item_metadata_too_long() {
                 RuntimeOrigin::signed(account),
                 b"CID".to_vec(),
                 b"key".to_vec(),
-                ContentSource::GitHub,
+                0, // GitHub
                 long_metadata
             ),
             Error::<Test>::MetadataTooLong
@@ -147,7 +147,7 @@ fn delete_shadow_item_works() {
             RuntimeOrigin::signed(account),
             b"CID".to_vec(),
             b"key".to_vec(),
-            ContentSource::GitHub,
+            0, // GitHub
             vec![]
         ));
 
@@ -199,7 +199,7 @@ fn delete_other_users_item_fails() {
             RuntimeOrigin::signed(account1),
             b"CID".to_vec(),
             b"key".to_vec(),
-            ContentSource::GitHub,
+            0, // GitHub
             vec![]
         ));
 
@@ -322,7 +322,7 @@ fn get_active_items_excludes_deleted() {
             RuntimeOrigin::signed(account),
             b"CID1".to_vec(),
             b"key1".to_vec(),
-            ContentSource::GitHub,
+            0, // GitHub
             vec![]
         ));
 
@@ -330,7 +330,7 @@ fn get_active_items_excludes_deleted() {
             RuntimeOrigin::signed(account),
             b"CID2".to_vec(),
             b"key2".to_vec(),
-            ContentSource::Twitter,
+            1, // Twitter
             vec![]
         ));
 
@@ -359,7 +359,7 @@ fn unique_item_ids_generated() {
                 RuntimeOrigin::signed(account),
                 b"SameCID".to_vec(),
                 format!("key{}", i).as_bytes().to_vec(),
-                ContentSource::GitHub,
+                0, // GitHub
                 vec![]
             ));
         }

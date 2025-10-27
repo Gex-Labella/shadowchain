@@ -11,7 +11,7 @@ benchmarks! {
         let cid = vec![1u8; 46]; // Typical IPFS CID length
         let encrypted_key = vec![2u8; 256]; // Typical encrypted key length
         let metadata = vec![3u8; 100]; // Some metadata
-    }: _(RawOrigin::Signed(caller.clone()), cid.clone(), encrypted_key, ContentSource::GitHub, metadata)
+    }: _(RawOrigin::Signed(caller.clone()), cid.clone(), encrypted_key, 0, metadata) // 0 for GitHub
     verify {
         assert_eq!(ItemCount::<T>::get(&caller), 1);
     }
@@ -28,7 +28,7 @@ benchmarks! {
             RawOrigin::Signed(caller.clone()).into(),
             cid,
             encrypted_key,
-            ContentSource::GitHub,
+            0, // GitHub
             metadata
         )?;
         

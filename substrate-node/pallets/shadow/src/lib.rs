@@ -213,6 +213,8 @@ pub mod pallet {
         ConsentNotFound,
         /// Consent has expired
         ConsentExpired,
+        /// Invalid content source
+        InvalidSource,
     }
 
     /// Pallet dispatchable functions
@@ -225,7 +227,7 @@ pub mod pallet {
         /// Parameters:
         /// - `cid`: IPFS Content Identifier
         /// - `encrypted_key`: Encrypted symmetric key
-        /// - `source`: Content source (GitHub or Twitter)
+        /// - `source`: Content source (0 for GitHub, 1 for Twitter)
         /// - `metadata`: Optional metadata
         #[pallet::call_index(0)]
         #[pallet::weight(Weight::from_parts(10_000, 0).saturating_add(T::DbWeight::get().reads_writes(2, 2)))]
@@ -233,10 +235,17 @@ pub mod pallet {
             origin: OriginFor<T>,
             cid: Vec<u8>,
             encrypted_key: Vec<u8>,
-            source: ContentSource,
+            source: u8,
             metadata: Vec<u8>,
         ) -> DispatchResult {
             let who = ensure_signed(origin)?;
+
+            // Convert source
+            let content_source = match source {
+                0 => ContentSource::GitHub,
+                1 => ContentSource::Twitter,
+                _ => return Err(Error::<T>::InvalidSource.into()),
+            };
 
             // Validate inputs
             let cid_bounded: BoundedVec<u8, T::MaxCidLength> = cid
@@ -261,7 +270,7 @@ pub mod pallet {
                 cid: cid_bounded.clone(),
                 encrypted_key: key_bounded,
                 timestamp: T::Time::now(),
-                source: source.clone(),
+                source: content_source,
                 metadata: metadata_bounded,
                 deleted: false,
             };
@@ -280,10 +289,7 @@ pub mod pallet {
                 account: who,
                 id,
                 cid: cid_bounded.into_inner(),
-                source: match source {
-                    ContentSource::GitHub => 0,
-                    ContentSource::Twitter => 1,
-                },
+                source,
             });
 
             Ok(())
