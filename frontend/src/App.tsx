@@ -1,56 +1,57 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useWalletStore } from './store/wallet';
-import Layout from './components/Layout';
-import ConnectWallet from './pages/ConnectWallet';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import './styles/shadowchain.css';
+
+import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
-import Authorize from './pages/Authorize';
+import OAuthCallback from './pages/OAuthCallback';
+import { useWalletStore } from './store/wallet';
 import { setupPolkadotApi } from './services/polkadot';
 
 function App() {
-  const { isConnected, isInitialized, initializeWallet } = useWalletStore();
+  const { isConnected, initializeWallet } = useWalletStore();
 
   useEffect(() => {
-    // Initialize Polkadot API
-    setupPolkadotApi().then(() => {
-      initializeWallet();
-    });
+    // Initialize wallet on app mount
+    initializeWallet();
+    // Initialize Polkadot API on app mount
+    setupPolkadotApi().catch(console.error);
   }, [initializeWallet]);
 
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-polkadot-pink mx-auto"></div>
-          <p className="mt-4 text-gray-400">Initializing Shadow Chain...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <Layout>
+    <div className="shadow-container">
+      {/* Cyberpunk scanline effect is added via CSS */}
       <Routes>
         <Route 
           path="/" 
-          element={
-            isConnected ? <Navigate to="/dashboard" /> : <ConnectWallet />
-          } 
+          element={isConnected ? <Navigate to="/dashboard" /> : <Landing />} 
         />
         <Route 
           path="/dashboard" 
-          element={
-            isConnected ? <Dashboard /> : <Navigate to="/" />
-          } 
+          element={isConnected ? <Dashboard /> : <Navigate to="/" />} 
         />
         <Route 
-          path="/authorize" 
-          element={
-            isConnected ? <Authorize /> : <Navigate to="/" />
-          } 
+          path="/oauth/callback" 
+          element={<OAuthCallback />} 
         />
       </Routes>
-    </Layout>
+      
+      <ToastContainer
+        position="bottom-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="dark"
+        toastClassName="toast-shadow"
+      />
+    </div>
   );
 }
 

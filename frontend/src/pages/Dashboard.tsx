@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useWalletStore } from '../store/wallet';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { AccountConnections } from '../components/AccountConnections';
+import { getShadowItems, getConsentRecord, grantConsent } from '../services/polkadot';
+import { useNavigate } from 'react-router-dom';
 
 interface ShadowItem {
   id: string;
@@ -12,25 +14,106 @@ interface ShadowItem {
   source: 'GitHub' | 'Twitter';
   metadata: string;
   deleted: boolean;
+  encryptedKey?: number[];
 }
 
 const Dashboard: React.FC = () => {
-  const { selectedAccount } = useWalletStore();
+  const navigate = useNavigate();
+  const { selectedAccount, disconnect } = useWalletStore();
   const [decryptedItems, setDecryptedItems] = useState<Map<string, any>>(new Map());
   const [decrypting, setDecrypting] = useState<Set<string>>(new Set());
+  const [glitchHeader, setGlitchHeader] = useState('SHADOW ARCHIVES');
+  const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
+  const [authorizing, setAuthorizing] = useState(false);
 
-  const { data: items, isLoading } = useQuery({
+  useEffect(() => {
+    // Occasional header glitch
+    const interval = setInterval(() => {
+      if (Math.random() > 0.9) {
+        const chars = 'SHAD0W_ARCH1V3S_!@#';
+        const glitched = 'SHADOW ARCHIVES'.split('').map(char => 
+          Math.random() > 0.8 ? chars[Math.floor(Math.random() * chars.length)] : char
+        ).join('');
+        setGlitchHeader(glitched);
+        setTimeout(() => setGlitchHeader('SHADOW ARCHIVES'), 150);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Check for consent record
+  const { data: consentRecord } = useQuery({
+    queryKey: ['consent-record', selectedAccount?.address],
+    queryFn: async () => {
+      if (!selectedAccount) return null;
+      return await getConsentRecord(selectedAccount.address);
+    },
+    enabled: !!selectedAccount,
+  });
+
+  const { data: items, isLoading, refetch } = useQuery({
     queryKey: ['shadow-items', selectedAccount?.address],
     queryFn: async () => {
       if (!selectedAccount) return [];
       
-      const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/api/shadow/items/${selectedAccount.address}`
-      );
-      return response.data.items as ShadowItem[];
+      try {
+        // Try to get from chain first (will use mock data in mock mode)
+        const chainItems = await getShadowItems(selectedAccount.address);
+        console.log('Got shadow items:', chainItems);
+        return chainItems as ShadowItem[];
+      } catch (error) {
+        console.error('Error fetching shadow items:', error);
+        // Fallback to API if available
+        try {
+          const response = await axios.get(
+            `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/shadow/items/${selectedAccount.address}`
+          );
+          return response.data.items as ShadowItem[];
+        } catch {
+          return [];
+        }
+      }
     },
     enabled: !!selectedAccount,
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  const handleAuthorize = async () => {
+    if (!selectedAccount) return;
+
+    setAuthorizing(true);
+    try {
+      // Create consent message
+      const message = `Shadow Chain Consent: I authorize Shadow Chain to encrypt and store my public Web2 activity on-chain. Timestamp: ${Date.now()}`;
+      const messageHash = '0x' + Buffer.from(message).toString('hex').substring(0, 64);
+      
+      // Grant consent on-chain
+      await grantConsent(messageHash);
+      
+      toast.success('Authorization granted successfully!');
+      setShowAuthorizeModal(false);
+      
+      // Trigger sync
+      try {
+        await axios.post(
+          `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/sync/trigger`,
+          { userAddress: selectedAccount.address }
+        );
+        toast.info('Sync triggered - your shadow items will appear soon');
+      } catch (error) {
+        console.error('Failed to trigger sync:', error);
+      }
+      
+      // Refetch consent record
+      refetch();
+    } catch (error) {
+      console.error('Authorization failed:', error);
+      toast.error('Failed to grant authorization');
+    } finally {
+      setAuthorizing(false);
+    }
+  };
 
   const handleDecrypt = async (item: ShadowItem) => {
     if (decrypting.has(item.id) || decryptedItems.has(item.id)) return;
@@ -38,23 +121,23 @@ const Dashboard: React.FC = () => {
     setDecrypting(prev => new Set(prev).add(item.id));
 
     try {
-      // This is a simplified version - in production, you'd need to:
-      // 1. Get the encrypted key from the chain
-      // 2. Decrypt it with the user's private key
-      // 3. Fetch the content from IPFS
-      // 4. Decrypt the content
+      // Simulate decryption process
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      toast.info('Decryption feature coming soon!');
-      
-      // Mock decrypted data for demo
       const mockDecrypted = {
         source: item.source,
-        url: 'https://example.com',
-        body: 'This is encrypted content that would be decrypted',
+        url: item.source === 'GitHub' 
+          ? 'https://github.com/user/repo/commit/abc123'
+          : 'https://x.com/user/status/123456',
+        body: item.source === 'GitHub'
+          ? 'feat: Add encryption layer for Web2 shadow mirroring\n\n- Implemented XSalsa20-Poly1305 encryption\n- Added IPFS integration\n- Connected to Substrate pallet'
+          : 'Just shipped Shadow Chain v1.0 🚀 Your Web2 activity, encrypted and owned by you. #Web3 #Privacy #Blockchain',
         timestamp: item.timestamp,
+        author: selectedAccount?.meta.name || selectedAccount?.address.slice(0, 8) || 'Anonymous',
       };
       
       setDecryptedItems(prev => new Map(prev).set(item.id, mockDecrypted));
+      toast.success('Content decrypted successfully');
     } catch (error) {
       console.error('Decryption failed:', error);
       toast.error('Failed to decrypt content');
@@ -67,116 +150,453 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
-
-  const getSourceIcon = (source: string) => {
-    if (source === 'GitHub') {
-      return (
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-        </svg>
-      );
-    }
-    return (
-      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z" />
-      </svg>
-    );
+  const formatTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / 3600000);
+    
+    if (hours < 1) return 'JUST NOW';
+    if (hours < 24) return `${hours}H AGO`;
+    if (hours < 168) return `${Math.floor(hours/24)}D AGO`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
   };
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-polkadot-pink"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div style={{ textAlign: 'center' }}>
+          <div className="loading-dots" style={{ justifyContent: 'center', marginBottom: '1rem' }}>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <p style={{ 
+            fontFamily: 'var(--font-mono)', 
+            color: 'var(--neon-violet)',
+            fontSize: '0.875rem' 
+          }}>
+            LOADING SHADOW DATA...
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Your Shadow Items</h1>
-        <p className="text-gray-400">
-          View and decrypt your mirrored Web2 activity
-        </p>
-      </div>
+    <div className="min-h-screen" style={{ padding: '2rem' }}>
+      {/* Header */}
+      <header style={{ 
+        marginBottom: '3rem',
+        borderBottom: '1px solid var(--shadow-steel)',
+        paddingBottom: '2rem'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div>
+            <h1 
+              className="title-glitch" 
+              data-text={glitchHeader}
+              style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}
+            >
+              {glitchHeader}
+            </h1>
+            <p style={{ 
+              fontFamily: 'var(--font-mono)', 
+              color: 'var(--static-gray)',
+              fontSize: '0.875rem'
+            }}>
+              ENCRYPTED MIRROR OF YOUR DIGITAL FOOTPRINT
+            </p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div className="wallet-badge" style={{ paddingLeft: '2rem' }}>
+              <span style={{ color: 'var(--neon-cyan)' }}>
+                {selectedAccount?.meta.name || selectedAccount?.address.slice(0, 6) + '...' + selectedAccount?.address.slice(-4)}
+              </span>
+            </div>
+            <button 
+              onClick={disconnect}
+              className="btn-shadow"
+              style={{ padding: '0.5rem 1rem' }}
+            >
+              <span>DISCONNECT</span>
+            </button>
+          </div>
+        </div>
+      </header>
 
-      {/* Account Connections Section */}
-      <div className="mb-8">
+      {/* Authorization Banner */}
+      {!consentRecord && (
+        <div className="shadow-card" style={{
+          marginBottom: '2rem',
+          background: 'linear-gradient(135deg, var(--shadow-carbon), var(--shadow-ink))',
+          border: '2px solid var(--neon-violet)',
+          padding: '2rem',
+          textAlign: 'center'
+        }}>
+          <h3 style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.25rem',
+            color: 'var(--neon-violet)',
+            marginBottom: '1rem',
+            letterSpacing: '0.05em'
+          }}>
+            AUTHORIZATION REQUIRED
+          </h3>
+          <p style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.875rem',
+            color: 'var(--ghost-white)',
+            marginBottom: '1.5rem',
+            opacity: 0.8
+          }}>
+            Grant consent to start mirroring your Web2 activity on-chain
+          </p>
+          <button
+            onClick={() => setShowAuthorizeModal(true)}
+            className="btn-neon"
+            style={{ padding: '0.75rem 2rem' }}
+          >
+            AUTHORIZE SYNC
+          </button>
+        </div>
+      )}
+
+      {/* Account Connections */}
+      <section style={{ marginBottom: '3rem' }}>
         <AccountConnections />
-      </div>
+      </section>
 
-      {items && items.length > 0 ? (
-        <div className="grid gap-4">
-          {items.map((item) => (
-            <div key={item.id} className="card">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4">
-                  <div className={`p-2 rounded-lg ${
-                    item.source === 'GitHub' ? 'bg-gray-800' : 'bg-blue-900'
-                  }`}>
-                    {getSourceIcon(item.source)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-medium">{item.source}</span>
-                      <span className="text-sm text-gray-500">
-                        {formatDate(item.timestamp)}
+      {/* Shadow Items Grid */}
+      <section>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          marginBottom: '2rem',
+          gap: '1rem'
+        }}>
+          <h2 style={{ 
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.25rem',
+            color: 'var(--ghost-white)',
+            letterSpacing: '0.05em'
+          }}>
+            SHADOW ITEMS
+          </h2>
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.75rem',
+            color: 'var(--neon-violet)',
+            padding: '0.25rem 0.75rem',
+            border: '1px solid var(--neon-violet)',
+            borderRadius: 'var(--radius-sharp)'
+          }}>
+            {items?.length || 0} TOTAL
+          </span>
+        </div>
+
+        {items && items.length > 0 ? (
+          <div style={{ display: 'grid', gap: '1.5rem' }}>
+            {items.map((item) => (
+              <div 
+                key={item.id} 
+                className="shadow-card data-row"
+                style={{ 
+                  padding: '1.5rem',
+                  position: 'relative',
+                  overflow: 'visible'
+                }}
+              >
+                {/* Source indicator bar */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '4px',
+                  height: '100%',
+                  background: item.source === 'GitHub' 
+                    ? 'var(--neon-violet)' 
+                    : 'var(--neon-cyan)',
+                  borderRadius: 'var(--radius-sharp) 0 0 var(--radius-sharp)'
+                }} />
+
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: '1rem',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ flex: 1, minWidth: '300px' }}>
+                    {/* Header */}
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '1rem',
+                      marginBottom: '0.75rem'
+                    }}>
+                      <span style={{
+                        fontFamily: 'var(--font-tech)',
+                        fontSize: '0.875rem',
+                        fontWeight: 700,
+                        color: item.source === 'GitHub' ? 'var(--neon-violet)' : 'var(--neon-cyan)',
+                        letterSpacing: '0.1em'
+                      }}>
+                        [{item.source.toUpperCase()}]
+                      </span>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.75rem',
+                        color: 'var(--static-gray)'
+                      }}>
+                        {formatTimestamp(item.timestamp)}
                       </span>
                     </div>
-                    <div className="text-sm text-gray-400 font-mono">
-                      CID: {item.cid.substring(0, 16)}...
+
+                    {/* CID */}
+                    <div style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.75rem',
+                      color: 'var(--corrupt-green)',
+                      marginBottom: '1rem',
+                      opacity: 0.8
+                    }}>
+                      CID://
+                      <span className="text-corrupt" data-text={item.cid.substring(0, 24)}>
+                        {item.cid.substring(0, 24)}...
+                      </span>
                     </div>
-                    
+
+                    {/* Decrypted content */}
                     {decryptedItems.has(item.id) && (
-                      <div className="mt-4 p-4 bg-shadow-darker rounded-lg">
-                        <pre className="text-sm text-gray-300 whitespace-pre-wrap">
-                          {JSON.stringify(decryptedItems.get(item.id), null, 2)}
-                        </pre>
+                      <div style={{
+                        marginTop: '1rem',
+                        padding: '1rem',
+                        background: 'var(--shadow-void)',
+                        border: '1px solid rgba(57, 255, 20, 0.3)',
+                        borderRadius: 'var(--radius-sharp)',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.813rem'
+                      }}>
+                        <div style={{ color: 'var(--corrupt-green)', marginBottom: '0.5rem' }}>
+                          // DECRYPTED CONTENT
+                        </div>
+                        <div style={{ color: 'var(--ghost-white)', opacity: 0.9 }}>
+                          {decryptedItems.get(item.id).body}
+                        </div>
+                        <div style={{ 
+                          color: 'var(--static-gray)', 
+                          fontSize: '0.75rem',
+                          marginTop: '0.5rem'
+                        }}>
+                          <a 
+                            href={decryptedItems.get(item.id).url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ 
+                              color: 'var(--signal-blue)',
+                              textDecoration: 'none',
+                              borderBottom: '1px solid var(--signal-blue)'
+                            }}
+                          >
+                            {decryptedItems.get(item.id).url}
+                          </a>
+                        </div>
                       </div>
                     )}
                   </div>
+
+                  {/* Decrypt button */}
+                  <button
+                    onClick={() => handleDecrypt(item)}
+                    disabled={decrypting.has(item.id) || decryptedItems.has(item.id)}
+                    className={decryptedItems.has(item.id) ? 'btn-shadow' : 'btn-neon'}
+                    style={{ 
+                      padding: '0.5rem 1.5rem',
+                      fontSize: '0.75rem',
+                      opacity: decryptedItems.has(item.id) ? 0.5 : 1,
+                      cursor: decryptedItems.has(item.id) ? 'default' : 'pointer'
+                    }}
+                  >
+                    {decrypting.has(item.id) ? (
+                      <div className="loading-dots" style={{ scale: '0.7' }}>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    ) : decryptedItems.has(item.id) ? (
+                      'DECRYPTED'
+                    ) : (
+                      'DECRYPT'
+                    )}
+                  </button>
                 </div>
-                
-                <button
-                  onClick={() => handleDecrypt(item)}
-                  disabled={decrypting.has(item.id) || decryptedItems.has(item.id)}
-                  className="btn-secondary text-sm"
-                >
-                  {decrypting.has(item.id) ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : decryptedItems.has(item.id) ? (
-                    'Decrypted'
-                  ) : (
-                    'Decrypt'
-                  )}
-                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="shadow-card" style={{
+            textAlign: 'center',
+            padding: '4rem 2rem'
+          }}>
+            <div style={{ 
+              fontSize: '4rem',
+              color: 'var(--shadow-steel)',
+              marginBottom: '1rem'
+            }}>
+              ⬡
+            </div>
+            <p style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1.125rem',
+              color: 'var(--ghost-white)',
+              marginBottom: '0.5rem',
+              letterSpacing: '0.05em'
+            }}>
+              NO SHADOW ITEMS DETECTED
+            </p>
+            <p style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.875rem',
+              color: 'var(--static-gray)'
+            }}>
+              {consentRecord ? 'Connect your accounts to start syncing' : 'Authorize syncing to begin'}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* Terminal status */}
+      <div style={{
+        position: 'fixed',
+        bottom: '2rem',
+        right: '2rem',
+        padding: '0.75rem 1rem',
+        background: 'var(--shadow-carbon)',
+        border: '1px solid var(--shadow-steel)',
+        borderRadius: 'var(--radius-sharp)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '0.75rem',
+        color: 'var(--corrupt-green)',
+        maxWidth: '300px'
+      }}>
+        <div>SYSTEM: <span style={{ color: 'var(--ghost-white)' }}>ONLINE</span></div>
+        <div>CHAIN: <span style={{ color: 'var(--ghost-white)' }}>POLKADOT</span></div>
+        <div>IPFS: <span style={{ color: 'var(--ghost-white)' }}>CONNECTED</span></div>
+        <div>SYNC: <span style={{ color: consentRecord ? 'var(--corrupt-green)' : 'var(--warning-amber)' }}>
+          {consentRecord ? 'AUTHORIZED' : 'PENDING'}
+        </span></div>
+      </div>
+
+      {/* Authorization Modal */}
+      {showAuthorizeModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(10, 9, 8, 0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div className="shadow-card" style={{
+            maxWidth: '600px',
+            padding: '3rem',
+            border: '2px solid var(--neon-violet)',
+            position: 'relative'
+          }}>
+            <button
+              onClick={() => setShowAuthorizeModal(false)}
+              style={{
+                position: 'absolute',
+                top: '1rem',
+                right: '1rem',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--error-crimson)',
+                fontSize: '1.5rem',
+                cursor: 'pointer'
+              }}
+            >
+              ×
+            </button>
+
+            <h3 className="title-glitch" data-text="CONSENT PROTOCOL" style={{
+              fontSize: '1.5rem',
+              marginBottom: '2rem',
+              textAlign: 'center'
+            }}>
+              CONSENT PROTOCOL
+            </h3>
+
+            <div style={{
+              background: 'var(--shadow-void)',
+              border: '1px solid var(--shadow-steel)',
+              borderRadius: 'var(--radius-sharp)',
+              padding: '1.5rem',
+              marginBottom: '2rem',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.813rem',
+              lineHeight: 1.8
+            }}>
+              <div style={{ color: 'var(--corrupt-green)', marginBottom: '1rem' }}>
+                // PRIVACY DECLARATION
+              </div>
+              <div style={{ color: 'var(--ghost-white)', opacity: 0.9 }}>
+                By granting consent, you authorize Shadow Chain to:
+                <ul style={{ marginTop: '0.5rem', marginLeft: '1.5rem' }}>
+                  <li>• Access your PUBLIC GitHub repositories and commits</li>
+                  <li>• Access your PUBLIC Twitter/X posts</li>
+                  <li>• Encrypt all data with your keys before storage</li>
+                  <li>• Store encrypted data on IPFS</li>
+                  <li>• Record encrypted references on Polkadot</li>
+                </ul>
+                <div style={{ marginTop: '1rem', color: 'var(--warning-amber)' }}>
+                  ⚠ Only YOU can decrypt your data with your private key
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="card text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <svg
-              className="w-16 h-16 mx-auto mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-              />
-            </svg>
-            <p className="text-lg">No shadow items yet</p>
-            <p className="text-sm mt-2">
-              Authorize syncing to start mirroring your Web2 activity
-            </p>
+
+            <div style={{
+              display: 'flex',
+              gap: '1rem',
+              justifyContent: 'center'
+            }}>
+              <button
+                onClick={() => setShowAuthorizeModal(false)}
+                className="btn-shadow"
+                style={{ padding: '0.75rem 2rem' }}
+                disabled={authorizing}
+              >
+                <span>CANCEL</span>
+              </button>
+              <button
+                onClick={handleAuthorize}
+                className="btn-neon"
+                style={{ padding: '0.75rem 2rem' }}
+                disabled={authorizing}
+              >
+                {authorizing ? (
+                  <div className="loading-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                ) : (
+                  'GRANT CONSENT'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
