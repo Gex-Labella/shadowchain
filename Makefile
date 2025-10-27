@@ -32,7 +32,7 @@ build: ## Build all components
 
 .PHONY: dev
 dev: ## Start local development environment
-	docker compose up -d
+	sudo docker compose up -d
 	@echo "Shadow Chain is running!"
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend API: http://localhost:3001"
@@ -41,21 +41,21 @@ dev: ## Start local development environment
 
 .PHONY: dev-logs
 dev-logs: ## Show logs from all services
-	docker compose logs -f
+	sudo docker compose logs -f
 
 .PHONY: dev-stop
 dev-stop: ## Stop local development environment
-	docker compose down
+	sudo docker compose down
 
 .PHONY: dev-clean
 dev-clean: ## Stop and remove all containers, volumes
-	docker compose down -v
+	sudo docker compose down -v
 
 .PHONY: dev-rebuild
 dev-rebuild: ## Rebuild and restart services
-	docker compose down
-	docker compose build --no-cache
-	docker compose up -d
+	sudo docker compose down
+	sudo docker compose build --no-cache
+	sudo docker compose up -d
 
 # Testing Commands
 .PHONY: test
@@ -81,10 +81,10 @@ test-coverage: ## Run tests with coverage
 
 # Production Commands
 .PHONY: build-prod
-build-prod: ## Build production Docker images
-	docker build -f substrate-node/Dockerfile -t shadowchain-node:latest ./substrate-node
-	docker build -f backend/Dockerfile -t shadowchain-backend:latest .
-	docker build -f frontend/Dockerfile -t shadowchain-frontend:latest .
+build-prod: ## Build production sudo docker images
+	sudo docker build -f substrate-node/sudo dockerfile -t shadowchain-node:latest ./substrate-node
+	sudo docker build -f backend/sudo dockerfile -t shadowchain-backend:latest .
+	sudo docker build -f frontend/sudo dockerfile -t shadowchain-frontend:latest .
 
 .PHONY: deploy-aws
 deploy-aws: ## Deploy to AWS
@@ -93,15 +93,15 @@ deploy-aws: ## Deploy to AWS
 # Database Commands (optional profiles)
 .PHONY: dev-with-db
 dev-with-db: ## Start development with PostgreSQL
-	docker compose --profile with-db up -d
+	sudo docker compose --profile with-db up -d
 
 .PHONY: dev-with-cache
 dev-with-cache: ## Start development with Redis cache
-	docker compose --profile with-cache up -d
+	sudo docker compose --profile with-cache up -d
 
 .PHONY: dev-full
 dev-full: ## Start development with all optional services
-	docker compose --profile with-db --profile with-cache up -d
+	sudo docker compose --profile with-db --profile with-cache up -d
 
 # Sync Commands
 .PHONY: sync-demo
@@ -113,7 +113,7 @@ sync-demo: ## Run manual sync demo
 # Chain Commands
 .PHONY: chain-purge
 chain-purge: ## Purge chain data
-	docker compose exec substrate-node shadowchain-node purge-chain --dev -y
+	sudo docker compose exec substrate-node shadowchain-node purge-chain --dev -y
 
 .PHONY: chain-info
 chain-info: ## Show chain information
@@ -125,11 +125,11 @@ chain-info: ## Show chain information
 # IPFS Commands
 .PHONY: ipfs-peers
 ipfs-peers: ## Show IPFS peers
-	docker compose exec ipfs ipfs swarm peers
+	sudo docker compose exec ipfs ipfs swarm peers
 
 .PHONY: ipfs-stats
 ipfs-stats: ## Show IPFS statistics
-	docker compose exec ipfs ipfs stats repo
+	sudo docker compose exec ipfs ipfs stats repo
 
 # Utility Commands
 .PHONY: lint
