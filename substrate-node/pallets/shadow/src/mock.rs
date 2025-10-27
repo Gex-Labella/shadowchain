@@ -95,7 +95,7 @@ parameter_types! {
 }
 
 impl pallet_shadow::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
+    // RuntimeEvent is automatically added, no need to specify it
     type Currency = Balances;
     type Time = Timestamp;
     type Moment = u64;
