@@ -22,6 +22,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub use pallet::*;
+
+use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
     dispatch::DispatchResult,
     pallet_prelude::*,
@@ -33,12 +36,9 @@ use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{Hash, Saturating},
-    DispatchError,
     RuntimeDebug,
 };
 use sp_std::{prelude::*, vec::Vec};
-
-pub use pallet::*;
 
 #[cfg(test)]
 mod mock;
@@ -53,7 +53,7 @@ mod benchmarking;
 type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Source of shadow content
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+#[derive(Clone, PartialEq, Eq, RuntimeDebug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 pub enum ContentSource {
     GitHub,
     Twitter,
