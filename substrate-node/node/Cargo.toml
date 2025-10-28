@@ -15,7 +15,7 @@ name = "shadowchain-node"
 [dependencies]
 clap = { workspace = true }
 futures = { workspace = true }
-serde = { version = "1.0.136", features = ["derive"] }
+serde = { workspace = true }
 jsonrpsee = { workspace = true }
 
 # Substrate client dependencies
@@ -23,11 +23,11 @@ sc-cli = { workspace = true }
 sp-core = { workspace = true }
 sc-executor = { workspace = true }
 sc-network = { workspace = true }
-sc-network-sync = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
+sc-network-sync = { workspace = true }
 sc-rpc = { workspace = true }
 sc-service = { workspace = true }
 sc-telemetry = { workspace = true }
-sc-keystore = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
+sc-keystore = { workspace = true }
 sc-transaction-pool = { workspace = true }
 sc-transaction-pool-api = { workspace = true }
 sc-offchain = { workspace = true }
@@ -44,7 +44,7 @@ sp-inherents = { workspace = true }
 sp-keyring = { workspace = true }
 frame-system = { workspace = true }
 pallet-transaction-payment = { workspace = true }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
+pallet-transaction-payment-rpc = { workspace = true }
 
 # These dependencies are used for the node's RPCs
 frame-system-rpc-runtime-api = { workspace = true }
@@ -52,7 +52,10 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 
 # These dependencies are used for runtime benchmarking
 frame-benchmarking = { workspace = true }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1" }
+frame-benchmarking-cli = { workspace = true }
+
+# Additional dependencies
+sp-blockchain = { workspace = true }
 
 # Local dependencies
 shadowchain-runtime = { path = "../runtime" }

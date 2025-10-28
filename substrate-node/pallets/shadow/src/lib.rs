@@ -4,10 +4,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame::prelude::*;
-use polkadot_sdk::polkadot_sdk_frame as frame;
-
-// Re-export all pallet parts, this is needed to properly import the pallet into the runtime.
+// Re-export pallet items so that they can be accessed from the crate namespace.
 pub use pallet::*;
 
 #[cfg(test)]
@@ -18,14 +15,18 @@ mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-
 pub mod weights;
 pub use weights::*;
 
-#[frame::pallet]
+#[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
 	use sp_std::vec::Vec;
+
+	#[pallet::pallet]
+	pub struct Pallet<T>(_);
 
 	/// The pallet's configuration trait.
 	#[pallet::config]
@@ -36,10 +37,6 @@ pub mod pallet {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
-
-	/// The pallet's storage items.
-	#[pallet::pallet]
-	pub struct Pallet<T>(_);
 
 	/// Storage map for shadow items by account.
 	#[pallet::storage]
@@ -57,7 +54,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		ConsentRecord<T::BlockNumber>,
+		ConsentRecord<BlockNumberFor<T>>,
 		OptionQuery,
 	>;
 
@@ -181,7 +178,7 @@ pub mod pallet {
 		pub fn grant_consent(
 			origin: OriginFor<T>,
 			message_hash: Vec<u8>,
-			duration: Option<T::BlockNumber>,
+			duration: Option<BlockNumberFor<T>>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 

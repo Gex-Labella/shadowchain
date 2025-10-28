@@ -27,6 +27,7 @@ sp-std = { workspace = true }
 sp-transaction-pool = { workspace = true }
 sp-version = { workspace = true }
 sp-io = { workspace = true }
+sp-genesis-builder = { workspace = true }
 
 # Frame dependencies
 frame-executive = { workspace = true }
@@ -36,6 +37,7 @@ frame-system-benchmarking = { workspace = true, optional = true }
 frame-benchmarking = { workspace = true, optional = true }
 frame-system-rpc-runtime-api = { workspace = true }
 frame-try-runtime = { workspace = true, optional = true }
+frame-metadata-hash-extension = { workspace = true }
 
 # Pallets
 pallet-aura = { workspace = true }
@@ -50,7 +52,7 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 pallet-shadow = { path = "../pallets/shadow", default-features = false }
 
 [build-dependencies]
-substrate-wasm-builder = { workspace = true }
+substrate-wasm-builder = { workspace = true, optional = true }
 
 [features]
 default = ["std"]
@@ -70,6 +72,7 @@ std = [
     "sp-transaction-pool/std",
     "sp-version/std",
     "sp-io/std",
+    "sp-genesis-builder/std",
     "frame-executive/std",
     "frame-support/std",
     "frame-system/std",
@@ -77,6 +80,7 @@ std = [
     "frame-benchmarking?/std",
     "frame-system-rpc-runtime-api/std",
     "frame-try-runtime?/std",
+    "frame-metadata-hash-extension/std",
     "pallet-aura/std",
     "pallet-balances/std",
     "pallet-grandpa/std",
@@ -85,6 +89,7 @@ std = [
     "pallet-transaction-payment/std",
     "pallet-transaction-payment-rpc-runtime-api/std",
     "pallet-shadow/std",
+    "substrate-wasm-builder",
 ]
 runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",
