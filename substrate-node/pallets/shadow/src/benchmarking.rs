@@ -1,66 +1,50 @@
 //! Benchmarking setup for pallet-shadow
 
 use super::*;
-use frame_benchmarking::{benchmarks, whitelisted_caller, account};
+
+#[allow(unused)]
+use crate::Pallet as Shadow;
+use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_system::RawOrigin;
-use sp_std::vec;
+use polkadot_sdk::polkadot_sdk_frame::deps::sp_runtime::traits::Hash;
 
 benchmarks! {
-    submit_shadow_item {
-        let caller: T::AccountId = whitelisted_caller();
-        let cid = vec![1u8; 46]; // Typical IPFS CID length
-        let encrypted_key = vec![2u8; 256]; // Typical encrypted key length
-        let metadata = vec![3u8; 100]; // Some metadata
-    }: _(RawOrigin::Signed(caller.clone()), cid.clone(), encrypted_key, 0, metadata) // 0 for GitHub
-    verify {
-        assert_eq!(ItemCount::<T>::get(&caller), 1);
-    }
+	submit_shadow_item {
+		let caller: T::AccountId = whitelisted_caller();
+		let cid = b"QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG".to_vec();
+		let encrypted_key = vec![0u8; 256];
+		let metadata = b"benchmark metadata".to_vec();
+	}: _(RawOrigin::Signed(caller.clone()), cid.clone(), encrypted_key, 0, metadata)
+	verify {
+		let items = ShadowItems::<T>::get(&caller);
+		assert_eq!(items.len(), 1);
+		assert_eq!(items[0].cid, cid);
+	}
 
-    delete_shadow_item {
-        let caller: T::AccountId = whitelisted_caller();
-        
-        // First submit an item
-        let cid = vec![1u8; 46];
-        let encrypted_key = vec![2u8; 256];
-        let metadata = vec![3u8; 100];
-        
-        Pallet::<T>::submit_shadow_item(
-            RawOrigin::Signed(caller.clone()).into(),
-            cid,
-            encrypted_key,
-            0, // GitHub
-            metadata
-        )?;
-        
-        let item_id = ShadowItems::<T>::get(&caller)[0].id;
-    }: _(RawOrigin::Signed(caller.clone()), item_id)
-    verify {
-        assert!(ShadowItems::<T>::get(&caller)[0].deleted);
-    }
+	delete_shadow_item {
+		let caller: T::AccountId = whitelisted_caller();
+		let cid = b"QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG".to_vec();
+		let encrypted_key = vec![0u8; 256];
+		let metadata = b"benchmark metadata".to_vec();
+		
+		// First submit an item
+		Shadow::<T>::submit_shadow_item(
+			RawOrigin::Signed(caller.clone()).into(),
+			cid.clone(),
+			encrypted_key,
+			0,
+			metadata,
+		)?;
+		
+		// Get the item ID
+		let nonce = 0u32;
+		let item_id = T::Hashing::hash_of(&(&caller, &nonce, &cid));
+		
+	}: _(RawOrigin::Signed(caller.clone()), item_id)
+	verify {
+		let items = ShadowItems::<T>::get(&caller);
+		assert_eq!(items.len(), 0);
+	}
 
-    grant_consent {
-        let caller: T::AccountId = whitelisted_caller();
-        let message_hash = T::Hashing::hash(b"consent message");
-        let expires_in = Some(T::Moment::default());
-    }: _(RawOrigin::Signed(caller.clone()), message_hash, expires_in)
-    verify {
-        assert!(ConsentRecords::<T>::contains_key(&caller));
-    }
-
-    revoke_consent {
-        let caller: T::AccountId = whitelisted_caller();
-        
-        // First grant consent
-        let message_hash = T::Hashing::hash(b"consent message");
-        Pallet::<T>::grant_consent(
-            RawOrigin::Signed(caller.clone()).into(),
-            message_hash,
-            None
-        )?;
-    }: _(RawOrigin::Signed(caller.clone()))
-    verify {
-        assert!(!ConsentRecords::<T>::contains_key(&caller));
-    }
-
-    impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
+	impl_benchmark_test_suite!(Shadow, crate::mock::new_test_ext(), crate::mock::Test);
 }

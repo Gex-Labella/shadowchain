@@ -95,10 +95,13 @@ export class SubstrateService {
 
     try {
       // Create extrinsic
-      const extrinsic = this.api.tx.shadowPallet.submitShadowItem(
+      // Convert source to numeric value (0 = GitHub, 1 = Twitter)
+      const sourceValue = source === 'GitHub' ? 0 : 1;
+      
+      const extrinsic = this.api.tx.shadow.submitShadowItem(
         Array.from(Buffer.from(cid)),
         Array.from(encryptedKey),
-        source,
+        sourceValue,
         Array.from(Buffer.from(metadata))
       );
 
@@ -128,7 +131,7 @@ export class SubstrateService {
     }
 
     try {
-      const items = await this.api.query.shadowPallet.shadowItems(address);
+      const items = await this.api.query.shadow.shadowItems(address);
       const itemsArray = items.toJSON() as any[];
 
       return itemsArray.map(item => ({
@@ -136,9 +139,9 @@ export class SubstrateService {
         cid: Buffer.from(item.cid).toString(),
         encryptedKey: u8aToHex(item.encryptedKey),
         timestamp: item.timestamp,
-        source: item.source,
+        source: item.source === 0 ? 'GitHub' : 'Twitter',
         metadata: Buffer.from(item.metadata).toString(),
-        deleted: item.deleted,
+        deleted: false, // No deletion flag in current implementation
       }));
     } catch (error) {
       logger.error({ error, address }, 'Failed to get shadow items');
@@ -163,7 +166,7 @@ export class SubstrateService {
     }
 
     try {
-      const consent = await this.api.query.shadowPallet.consentRecords(address);
+      const consent = await this.api.query.shadow.consentRecords(address);
       
       if (consent.isEmpty) {
         return false;
@@ -172,8 +175,9 @@ export class SubstrateService {
       const consentRecord = consent.toJSON() as any;
       
       if (consentRecord.expiresAt) {
-        const now = Date.now();
-        return now <= consentRecord.expiresAt;
+        // Get current block number
+        const currentBlock = await this.api.query.system.number();
+        return parseInt(currentBlock.toString()) <= consentRecord.expiresAt;
       }
 
       return true;
@@ -192,7 +196,7 @@ export class SubstrateService {
     }
 
     try {
-      const consent = await this.api.query.shadowPallet.consentRecords(address);
+      const consent = await this.api.query.shadow.consentRecords(address);
       
       if (consent.isEmpty) {
         return null;
@@ -203,10 +207,73 @@ export class SubstrateService {
       return {
         grantedAt: record.grantedAt,
         expiresAt: record.expiresAt,
-        messageHash: record.messageHash,
+        messageHash: u8aToHex(record.messageHash),
       };
     } catch (error) {
       logger.error({ error, address }, 'Failed to get consent record');
+      throw error;
+    }
+  }
+
+  /**
+   * Grant consent for the backend to submit shadow items
+   */
+  async grantConsent(
+    userAddress: string,
+    messageHash: string,
+    duration?: number
+  ): Promise<string> {
+    if (!this.api) {
+      throw new Error('Not connected to Substrate node');
+    }
+
+    try {
+      // Create extrinsic
+      const extrinsic = this.api.tx.shadow.grantConsent(
+        Array.from(Buffer.from(messageHash)),
+        duration
+      );
+
+      // Submit extrinsic
+      const hash = await this.submitExtrinsic(extrinsic, userAddress);
+      
+      logger.info({
+        userAddress,
+        messageHash,
+        duration,
+        hash,
+      }, 'Consent granted');
+
+      return hash;
+    } catch (error) {
+      logger.error({ error }, 'Failed to grant consent');
+      throw error;
+    }
+  }
+
+  /**
+   * Revoke consent
+   */
+  async revokeConsent(userAddress: string): Promise<string> {
+    if (!this.api) {
+      throw new Error('Not connected to Substrate node');
+    }
+
+    try {
+      // Create extrinsic
+      const extrinsic = this.api.tx.shadow.revokeConsent();
+
+      // Submit extrinsic
+      const hash = await this.submitExtrinsic(extrinsic, userAddress);
+      
+      logger.info({
+        userAddress,
+        hash,
+      }, 'Consent revoked');
+
+      return hash;
+    } catch (error) {
+      logger.error({ error }, 'Failed to revoke consent');
       throw error;
     }
   }
@@ -317,7 +384,7 @@ export class SubstrateService {
       throw new Error('Not connected to Substrate node');
     }
 
-    const unsub = await this.api.query.shadowPallet.shadowItems(
+    const unsub = await this.api.query.shadow.shadowItems(
       address,
       (items: any) => {
         const itemsArray = items.toJSON() as any[];
@@ -326,9 +393,9 @@ export class SubstrateService {
           cid: Buffer.from(item.cid).toString(),
           encryptedKey: u8aToHex(item.encryptedKey),
           timestamp: item.timestamp,
-          source: item.source,
+          source: item.source === 0 ? 'GitHub' : 'Twitter',
           metadata: Buffer.from(item.metadata).toString(),
-          deleted: item.deleted,
+          deleted: false, // No deletion flag in current implementation
         }));
         callback(shadowItems);
       }
