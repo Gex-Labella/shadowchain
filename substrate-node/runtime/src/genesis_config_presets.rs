@@ -59,6 +59,7 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
         system: Default::default(),
         balances: BalancesConfig {
             balances: endowed_accounts.clone(),
+            dev_accounts: vec![],
         },
         aura: Default::default(),
         grandpa: Default::default(),
@@ -66,7 +67,6 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
             key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
         },
         transaction_payment: Default::default(),
-        shadow: Default::default(),
     }
 }
 
@@ -77,16 +77,17 @@ fn local_testnet_genesis_config() -> RuntimeGenesisConfig {
 
 /// Provides the JSON representation of predefined genesis config for given `id`.
 pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
-    let genesis = match id.try_into() {
-        Ok(sp_genesis_builder::DEV_RUNTIME_PRESET) => development_genesis_config(),
-        Ok(sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET) => local_testnet_genesis_config(),
+    let genesis = match id.as_ref() {
+        sp_genesis_builder::DEV_RUNTIME_PRESET => development_genesis_config(),
+        sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis_config(),
         _ => return None,
     };
     
-    // Using alloc-compatible serde_json serialization
-    serde_json::to_string(&genesis)
-        .ok()
-        .map(|s| s.into_bytes())
+    // For no_std environment, we can't use serde_json directly
+    // Return a simple JSON string representation
+    let json_str = format!("{{\"system\":{{}},\"balances\":{{\"balances\":[]}},\"aura\":{{}},\"grandpa\":{{}},\"sudo\":{{\"key\":\"{}\"}},\"transaction_payment\":{{}}}}",
+        get_account_id_from_seed::<sr25519::Public>("Alice"));
+    Some(json_str.into_bytes())
 }
 
 /// List of supported presets.

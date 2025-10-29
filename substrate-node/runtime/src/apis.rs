@@ -3,6 +3,7 @@
 use crate::{
     AccountId, Balance, Block, Executive, Header, Nonce, Runtime,
     RuntimeGenesisConfig, SessionKeys, System, TransactionPayment, VERSION,
+    InherentDataExt, AllPalletsWithSystem,
 };
 use frame_support::{
     genesis_builder_helper::{build_state, get_preset},
@@ -62,14 +63,14 @@ impl_runtime_apis! {
         }
 
         fn inherent_extrinsics(data: InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
-            data.create_extrinsics()
+            <InherentData as InherentDataExt>::create_extrinsics(&data)
         }
 
         fn check_inherents(
             block: Block,
             data: InherentData,
         ) -> CheckInherentsResult {
-            data.check_extrinsics(&block)
+            <InherentData as InherentDataExt>::check_extrinsics(&data, &block)
         }
     }
 
@@ -113,7 +114,7 @@ impl_runtime_apis! {
 
     impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
         fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
-            pallet_grandpa::Authorities::<Runtime>::get()
+            pallet_grandpa::Authorities::<Runtime>::get().to_vec()
         }
 
         fn current_set_id() -> sp_consensus_grandpa::SetId {

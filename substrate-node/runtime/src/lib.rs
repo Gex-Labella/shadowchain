@@ -184,6 +184,9 @@ pub type Executive = frame_executive::Executive<
     Migrations,
 >;
 
+// All of the pallets' configs are configured in the `configs` module.
+pub use configs::*;
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[frame_support::runtime]
 mod runtime {
@@ -228,8 +231,13 @@ mod runtime {
     pub type Shadow = pallet_shadow;
 }
 
-// All of the pallets' configs are configured in the `configs` module.
-use configs::*;
+// Export runtime types
+pub use runtime::{
+    Runtime, RuntimeCall, RuntimeEvent, RuntimeError, RuntimeOrigin, RuntimeFreezeReason,
+    RuntimeHoldReason, RuntimeSlashReason, RuntimeLockId, RuntimeTask, RuntimeViewFunction,
+    System, Timestamp, Aura, Grandpa, Balances, TransactionPayment, Sudo, Shadow,
+    AllPalletsWithSystem, PalletInfo, InherentDataExt,
+};
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
@@ -247,6 +255,3 @@ pub use frame_support::{
 pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 pub use sp_consensus_grandpa::AuthorityId as GrandpaId;
 pub use sp_runtime::{Perbill, Permill};
-
-// Export some types for use in the node
-pub use runtime::{AllPalletsWithSystem, PalletInfo, RuntimeCall, RuntimeEvent};

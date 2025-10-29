@@ -1,8 +1,8 @@
 //! Runtime configurations for the Shadow Chain.
 
 use crate::{
-    Balance, Block, BlockNumber, Runtime, RuntimeCall, RuntimeEvent,
-    RuntimeHoldReason, VERSION,
+    Aura, Balance, Balances, Block, BlockNumber, Runtime, RuntimeCall, RuntimeEvent,
+    RuntimeHoldReason, RuntimeOrigin, RuntimeTask, PalletInfo, System,
 };
 use frame_support::{
     derive_impl, parameter_types,
@@ -123,7 +123,7 @@ impl pallet_timestamp::Config for Runtime {
 
 parameter_types! {
     pub const TransactionByteFee: Balance = 1;
-    pub FeeMultiplier: Multiplier = Multiplier::one();
+    pub FeeMultiplier: Multiplier = Multiplier::from_u32(1);
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -171,5 +171,4 @@ impl pallet_shadow::Config for Runtime {
     type MaxMessageHashLength = MaxMessageHashLength;
 }
 
-use sp_runtime::traits::{ConstU8, Get};
-use sp_std;
+use sp_runtime::traits::ConstU8;
