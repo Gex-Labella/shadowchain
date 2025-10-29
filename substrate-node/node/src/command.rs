@@ -4,12 +4,12 @@ use cumulus_client_service::storage_proof_size::HostFunctions as ReclaimHostFunc
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use log::info;
 use shadowchain_runtime::Block;
-use sc_sysinfo::HwBench;
 use sc_cli::{
     ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
     NetworkParams, Result, RpcEndpoint, SharedParams, SubstrateCli,
 };
 use sc_service::config::{BasePath, PrometheusConfig};
+use sc_sysinfo::HwBench;
 
 use crate::{
     chain_spec,

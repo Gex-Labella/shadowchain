@@ -10,7 +10,6 @@ use shadowchain_runtime::{
 };
 
 // Cumulus Imports
-use cumulus_client_network::{start_bootnode_tasks, StartBootnodeTasksParams};
 use cumulus_client_cli::CollatorOptions;
 use cumulus_client_collator::service::CollatorService;
 use cumulus_client_consensus_aura::collators::lookahead::{self as aura, Params as AuraParams};
@@ -38,11 +37,11 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ProvideRuntimeApi;
-use sc_keystore::KeystorePtr;
+use sp_keystore::KeystorePtr;
 
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
 
-type ParachainClient = TFullClient<Block, RuntimeApi, ParachainExecutor>;
+type ParachainClient = TFullClient<Block, shadowchain_runtime::RuntimeApi, ParachainExecutor>;
 
 type ParachainBackend = TFullBackend<Block>;
 
@@ -88,7 +87,7 @@ pub fn new_partial(config: &Configuration) -> Result<Service, sc_service::Error>
         .build();
 
     let (client, backend, keystore_container, task_manager) =
-        sc_service::new_full_parts_record_import::<Block, RuntimeApi, _>(
+        sc_service::new_full_parts_record_import::<Block, shadowchain_runtime::RuntimeApi, _>(
             config,
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
             executor,
@@ -224,7 +223,6 @@ fn start_consensus(
 }
 
 /// Start a node with the given parachain `Configuration` and relay chain `Configuration`.
-#[sc_cli::prefix_logs_with("Parachain")]
 pub async fn start_parachain_node(
     parachain_config: Configuration,
     polkadot_config: Configuration,
@@ -398,21 +396,6 @@ pub async fn start_parachain_node(
         prometheus_registry: prometheus_registry.as_ref(),
     })?;
 
-    start_bootnode_tasks(StartBootnodeTasksParams {
-        embedded_dht_bootnode: collator_options.embedded_dht_bootnode,
-        dht_bootnode_discovery: collator_options.dht_bootnode_discovery,
-        para_id,
-        task_manager: &mut task_manager,
-        relay_chain_interface: relay_chain_interface.clone(),
-        relay_chain_fork_id,
-        relay_chain_network,
-        request_receiver: paranode_rx,
-        parachain_network: network,
-        advertise_non_global_ips,
-        parachain_genesis_hash: client.chain_info().genesis_hash,
-        parachain_fork_id,
-        parachain_public_addresses,
-    });
 
     if validator {
         start_consensus(

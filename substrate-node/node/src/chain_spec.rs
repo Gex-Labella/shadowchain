@@ -2,6 +2,7 @@
 
 use shadowchain_runtime as runtime;
 use sc_service::{ChainType, Properties};
+use sc_chain_spec::{ChainSpecExtension, Extension};
 use serde::{Deserialize, Serialize};
 use sp_core::Pair;
 use sp_runtime::traits::IdentifyAccount;
@@ -27,11 +28,11 @@ pub struct Extensions {
 impl Extensions {
     /// Try to get the extension from the given `ChainSpec`.
     pub fn try_get(chain_spec: &dyn sc_service::ChainSpec) -> Option<&Self> {
-        sc_chain_spec::Extension::try_get(chain_spec.extensions())
+        Extension::try_get(chain_spec.extensions())
     }
 }
 
-impl sc_chain_spec::Extension for Extensions {
+impl Extension for Extensions {
     type Forks = Option<()>;
 
     fn get<T: 'static>(&self) -> Option<&T> {
@@ -47,9 +48,9 @@ impl sc_chain_spec::Extension for Extensions {
     }
 }
 
-impl From<Extensions> for sc_chain_spec::ChainSpecExtension {
+impl From<Extensions> for ChainSpecExtension {
     fn from(ext: Extensions) -> Self {
-        Self::new(ext)
+        ChainSpecExtension::new(ext)
     }
 }
 
