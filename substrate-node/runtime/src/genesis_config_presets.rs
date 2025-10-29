@@ -59,7 +59,7 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
         system: Default::default(),
         balances: BalancesConfig {
             balances: endowed_accounts.clone(),
-            dev_accounts: vec![],
+            dev_accounts: None,
         },
         aura: Default::default(),
         grandpa: Default::default(),
@@ -85,8 +85,10 @@ pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
     
     // For no_std environment, we can't use serde_json directly
     // Return a simple JSON string representation
-    let json_str = format!("{{\"system\":{{}},\"balances\":{{\"balances\":[]}},\"aura\":{{}},\"grandpa\":{{}},\"sudo\":{{\"key\":\"{}\"}},\"transaction_payment\":{{}}}}",
-        get_account_id_from_seed::<sr25519::Public>("Alice"));
+    // Using Debug format for AccountId since Display is not implemented
+    let alice_account = get_account_id_from_seed::<sr25519::Public>("Alice");
+    let json_str = format!("{{\"system\":{{}},\"balances\":{{\"balances\":[],\"dev_accounts\":null}},\"aura\":{{}},\"grandpa\":{{}},\"sudo\":{{\"key\":\"{:?}\"}},\"transaction_payment\":{{}}}}",
+        alice_account);
     Some(json_str.into_bytes())
 }
 
