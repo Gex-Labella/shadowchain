@@ -1,16 +1,20 @@
-# Shadow Chain Substrate Node
+# Shadow Chain Parachain Node
 
 ## 🎯 What Is This?
 
-This folder contains a **custom blockchain node** built with Substrate (Polkadot's blockchain framework). Think of it as your own private blockchain server that stores encrypted references to your Web2 data.
+This folder contains a **Polkadot parachain node** built with Substrate and Cumulus. It's configured to run as a parachain that can connect to Polkadot or Kusama relay chains. The node stores encrypted references to your Web2 data on-chain.
 
-**In Simple Terms**: This is the blockchain part of Shadow Chain - it's like a secure, tamper-proof database that only stores encrypted pointers to your data, not the data itself.
+**In Simple Terms**: This is the blockchain part of Shadow Chain - a parachain that provides a secure, tamper-proof database storing only encrypted pointers to your data, not the data itself.
 
-## 📚 What is Substrate?
+## 📚 What is a Parachain?
 
-**Substrate** is a framework for building blockchains, created by the team behind Polkadot. It's like WordPress for blockchains - it gives you pre-built components that you can customize.
+A **Parachain** is a blockchain that connects to and gains security from the Polkadot relay chain. Benefits include:
+- Shared security from Polkadot
+- Cross-chain messaging (XCM) capabilities
+- Interoperability with other parachains
+- No need to maintain your own validator set
 
-**Rust** is the programming language used. Don't worry if you don't know Rust - you don't need to modify this code to use Shadow Chain!
+**Cumulus** is the framework that makes a Substrate chain compatible with Polkadot.
 
 ## 🏗️ Folder Structure Explained
 
@@ -29,7 +33,7 @@ substrate-node/
 │       ├── cli.rs          # Command-line interface
 │       ├── command.rs      # Command processing
 │       ├── rpc.rs          # API endpoints
-│       └── service.rs      # Core node services
+│       └── service.rs      # Core node services with Cumulus integration
 │
 ├── pallets/           # 🔧 Custom blockchain logic (smart contracts)
 │   └── shadow/       # Our custom "Shadow" pallet
@@ -44,16 +48,19 @@ substrate-node/
     ├── Cargo.toml
     ├── build.rs
     └── src/
-        └── lib.rs     # Combines all pallets into one blockchain
+        ├── lib.rs          # Runtime with parachain support
+        ├── configs.rs      # Pallet configurations
+        ├── xcm_config.rs   # Cross-chain messaging setup
+        └── apis.rs         # Runtime APIs
 ```
 
 ## 🎮 What Each Part Does
 
-### **1. The Pallet (`pallets/shadow/`)**
-This is the "smart contract" of our blockchain. It defines:
-- **What data can be stored**: Shadow items (encrypted references)
-- **Who can store it**: Only authorized users
-- **How it's stored**: As a list linked to each user's account
+### **1. The Shadow Pallet (`pallets/shadow/`)**
+This is the custom logic of our parachain. It defines:
+- **What data can be stored**: Shadow items (encrypted references with bounded storage)
+- **Who can store it**: Only authorized users with valid accounts
+- **How it's stored**: Using BoundedVec with configurable limits per account
 
 **Key Functions**:
 ```rust
@@ -71,214 +78,206 @@ revoke_consent()
 ```
 
 ### **2. The Runtime (`runtime/`)**
-Think of this as the blockchain's operating system. It:
-- Combines all pallets (ours + system pallets)
-- Sets blockchain parameters (block time, fees, etc.)
-- Defines the blockchain's capabilities
+The parachain runtime includes:
+- Cumulus pallets for parachain functionality
+- XCM configuration for cross-chain messaging
+- Shadow pallet with proper storage bounds
+- All necessary parachain system pallets
 
 ### **3. The Node (`node/`)**
-This is the actual software that:
-- Connects to other nodes (if any)
-- Produces new blocks
-- Validates transactions
+The collator node software that:
+- Collects transactions and produces blocks
+- Communicates with the relay chain
+- Validates parachain blocks
 - Provides APIs for external apps
 
 ## 🚀 How to Run the Node
 
-### **Option 1: Using Docker (Easiest)**
+### **Option 1: Using Docker (Recommended)**
 ```bash
 # From the project root
 docker compose up substrate-node
 
 # Or build and run directly
 cd substrate-node
-docker build -t shadow-substrate .
-docker run -p 9944:9944 -p 9933:9933 shadow-substrate
+docker build -t shadow-parachain .
+docker run -p 9944:9944 -p 9933:9933 -p 30333:30333 shadow-parachain
 ```
 
-### **Option 2: Native Build (Advanced)**
+### **Option 2: Local Development Mode**
 ```bash
-# Install Rust first
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install dependencies
-sudo apt-get install -y clang libclang-dev protobuf-compiler
-
-# Build the node
-cd substrate-node
-cargo build --release
-
-# Run the node
+# Run as a standalone chain (development)
 ./target/release/shadowchain-node --dev
+
+# Run as a parachain collator
+./target/release/shadowchain-node \
+  --collator \
+  --parachain-id 2000 \
+  --base-path /tmp/parachain \
+  --port 30333 \
+  --rpc-port 9933 \
+  --ws-port 9944 \
+  -- \
+  --chain rococo \
+  --port 30334 \
+  --rpc-port 9934 \
+  --ws-port 9945
 ```
 
-## 🔌 How to Connect to the Node
+## 🔌 Parachain Configuration
 
-### **WebSocket Endpoint**
-- **Local**: `ws://localhost:9944`
-- **Docker**: `ws://localhost:9944`
+### **Chain Specifications**
+- **Parachain ID**: Configurable (default: 2000 for testing)
+- **Relay Chain**: Compatible with Polkadot/Kusama/Rococo
+- **Runtime**: WASM-based with Cumulus integration
+- **Consensus**: Aura (for block authoring) + relay chain consensus
 
-### **HTTP RPC Endpoint**
-- **Local**: `http://localhost:9933`
-- **Docker**: `http://localhost:9933`
-
-### **Using Polkadot.js Apps (Web Interface)**
-1. Go to: https://polkadot.js.org/apps
-2. Click top-left corner to change network
-3. Select "Development" → "Local Node"
-4. Or use custom endpoint: `ws://localhost:9944`
+### **XCM Support**
+The parachain supports Cross-Consensus Messaging (XCM) for:
+- Asset transfers between parachains
+- Remote execution of functions
+- Communication with relay chain
 
 ## 📊 What Gets Stored On-Chain?
 
 **Important**: We NEVER store your actual data on the blockchain!
 
 Each **Shadow Item** contains:
-```javascript
+```rust
 {
-  id: "unique-hash-id",           // Unique identifier
-  cid: "QmXk2f9...",              // IPFS address of encrypted content
-  encryptedKey: "0x7f9a2b...",    // Encrypted key (only you can decrypt)
-  timestamp: 1699234567,          // When it was stored
-  source: "GitHub",               // Or "Twitter"
-  metadata: "commit: fix bug",    // Brief description
-  deleted: false                  // Soft delete flag
+  id: Hash,                      // Unique identifier
+  owner: AccountId,              // Account that owns this item
+  cid: BoundedVec<u8, 100>,     // IPFS CID (max 100 bytes)
+  encrypted_key: BoundedVec<u8, 512>, // Encrypted key (max 512 bytes)
+  timestamp: u64,                // When it was stored
+  source: BoundedVec<u8, 50>,   // Source platform (max 50 bytes)
+  metadata: BoundedVec<u8, 200>, // Brief description (max 200 bytes)
+  deleted: bool                  // Soft delete flag
 }
 ```
 
+**Storage Limits**:
+- Max CID length: 100 bytes
+- Max encrypted key: 512 bytes
+- Max source name: 50 bytes
+- Max metadata: 200 bytes
+- Max items per account: 10,000 (configurable)
+
 ## 🔐 Security Model
 
-1. **Your Keys, Your Data**: Only you have the keys to decrypt your content
-2. **Encrypted Storage**: Content is encrypted before leaving your device
-3. **Distributed Storage**: Actual content on IPFS, only pointers on-chain
-4. **Consent-Based**: Node only accepts data with valid user consent
+1. **Parachain Security**: Inherits security from Polkadot relay chain
+2. **Your Keys, Your Data**: Only you have the keys to decrypt your content
+3. **Encrypted Storage**: Content is encrypted before leaving your device
+4. **Distributed Storage**: Actual content on IPFS, only pointers on-chain
+5. **Consent-Based**: Node only accepts data with valid user consent
+6. **Bounded Storage**: Prevents storage attacks with size limits
 
 ## 🛠️ Development Commands
 
-### **Run Tests**
+### **Build for Production**
 ```bash
 cd substrate-node
-cargo test
+cargo build --release --features on-chain-release-build
 ```
 
-### **Check Code**
+### **Run Tests**
 ```bash
-cargo check
+cargo test --all
 ```
 
-### **Format Code**
+### **Benchmarking**
 ```bash
-cargo fmt
+cargo build --release --features runtime-benchmarks
+./target/release/shadowchain-node benchmark pallet \
+  --chain dev \
+  --pallet pallet_shadow \
+  --extrinsic "*" \
+  --steps 50 \
+  --repeat 20
 ```
 
-### **Clean Build**
-```bash
-cargo clean
-cargo build --release
-```
-
-## 📡 Interacting with the Node
+## 📡 Interacting with the Parachain
 
 ### **From JavaScript/TypeScript**
 ```javascript
 import { ApiPromise, WsProvider } from '@polkadot/api';
 
-// Connect
+// Connect to parachain
 const wsProvider = new WsProvider('ws://localhost:9944');
 const api = await ApiPromise.create({ provider: wsProvider });
 
-// Query shadow items
-const items = await api.query.shadowPallet.shadowItems('user-address');
+// Check parachain info
+const parachainId = await api.query.parachainInfo.parachainId();
+console.log('Parachain ID:', parachainId.toString());
 
-// Submit new item
-const tx = api.tx.shadowPallet.submitShadowItem(
-  cid,
-  encryptedKey,
-  'GitHub',
-  metadata
+// Query shadow items
+const items = await api.query.shadow.shadowItems(accountId);
+
+// Submit new item with bounded data
+const tx = api.tx.shadow.submitShadowItem(
+  cid,          // max 100 bytes
+  encryptedKey, // max 512 bytes
+  'GitHub',     // max 50 bytes
+  metadata      // max 200 bytes
 );
 await tx.signAndSend(account);
 ```
 
-### **Using curl**
-```bash
-# Get node info
-curl -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"system_health","params":[],"id":1}' \
-  http://localhost:9933
-```
+## ⚙️ Configuration Details
 
-## ⚙️ Configuration Files
+### **Parachain-Specific Configurations**
+- **Collator Selection**: Manages block producers
+- **XCM Config**: Cross-chain messaging settings
+- **ParachainSystem**: Validation and relay chain interaction
+- **ParachainInfo**: Stores parachain ID and metadata
 
-### **Chain Spec (`chain_spec.rs`)**
-Defines:
-- Network name: "Shadow Chain"
-- Initial accounts (Alice, Bob for testing)
-- Initial token distribution
-- Genesis configuration
-
-### **Runtime Configuration (`runtime/lib.rs`)**
-Sets:
-- Block time: 6 seconds
+### **Runtime Parameters**
+- Block time: 12 seconds (2x relay chain)
 - Currency: SHDW tokens
-- Transaction fees
-- Pallet configurations
+- Transaction fees: Dynamic based on weight
+- Max block weight: 50% of relay chain block
+
+## 🚦 Parachain Status Indicators
+
+When running as a collator:
+```
+🏆 Starting collator node
+⚙️  Syncing relay chain (Rococo)
+📦 Imported relay block #1234
+✨ Produced parachain block #567
+🔗 Block included in relay chain
+```
 
 ## 🐛 Troubleshooting
 
-### **Node Won't Start**
-- Check ports 9944, 9933 aren't in use: `lsof -i :9944`
-- Ensure Docker is running: `docker ps`
-- Check logs: `docker compose logs substrate-node`
+### **Collator Won't Start**
+- Ensure relay chain is accessible
+- Check parachain ID is registered
+- Verify ports aren't blocked
+- Check both parachain and relay chain ports
 
-### **Can't Connect from Frontend**
-- Verify node is running: `curl http://localhost:9933`
-- Check WebSocket: `websocat ws://localhost:9944`
-- Ensure no firewall blocking ports
+### **XCM Errors**
+- Verify XCM configuration
+- Check asset registration
+- Ensure proper weights configured
 
-### **Build Errors**
-- Update Rust: `rustup update`
-- Clear cache: `cargo clean`
-- Check Rust version: `rustc --version` (need 1.70+)
-
-## 📚 Key Concepts for Beginners
-
-### **What's a Pallet?**
-A pallet is like a module or plugin that adds specific functionality to your blockchain. Our "shadow" pallet adds the ability to store encrypted data references.
-
-### **What's an Extrinsic?**
-An extrinsic is a blockchain transaction - a request to change the blockchain state. Like calling `submitShadowItem()`.
-
-### **What's Storage?**
-On-chain storage is the blockchain's database. We store minimal data here (just references) to keep the chain lightweight.
-
-### **What's a Block?**
-A block is a batch of transactions bundled together. Our node creates a new block every 6 seconds.
-
-### **What's Consensus?**
-Consensus is how nodes agree on the blockchain state. In dev mode, we use "Instant Seal" (no consensus needed). In production, you'd use proof-of-authority or proof-of-stake.
-
-## 🚦 Node Status Indicators
-
-When running, you'll see logs like:
-```
-💤 Idle (0 peers)          # Waiting for transactions
-⚙️  Preparing 0.0 bps      # Processing transactions  
-✨ Imported #123           # New block created
-🔍 Discovered: 0 peers     # Network status
-```
+### **Storage Errors**
+- Check BoundedVec limits
+- Ensure data fits within bounds
+- Verify account has not hit item limit
 
 ## 📖 Learn More
 
+- **Polkadot Wiki**: https://wiki.polkadot.network/docs/build-parachain
+- **Cumulus Docs**: https://github.com/paritytech/cumulus
+- **XCM Format**: https://github.com/paritytech/xcm-format
 - **Substrate Docs**: https://docs.substrate.io
-- **Polkadot.js Docs**: https://polkadot.js.org/docs/
-- **Rust Book**: https://doc.rust-lang.org/book/
-- **Our Docs**: See `/docs/arch.md` for architecture details
 
 ## 🆘 Getting Help
 
-1. Check the logs: `docker compose logs substrate-node`
-2. Verify the node is running: `docker ps`
-3. Test the connection: `curl http://localhost:9933`
-4. Check our troubleshooting guide above
+1. Check collator logs: `docker compose logs substrate-node`
+2. Verify relay chain connection
+3. Test parachain APIs: `curl http://localhost:9933`
+4. Check XCM configuration if cross-chain features fail
 
-Remember: You don't need to understand all the Rust code to use Shadow Chain! The node just needs to be running for the system to work.
+Remember: The node is now configured as a parachain with full Cumulus support, XCM messaging, and proper storage bounds for production use!

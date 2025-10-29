@@ -77,7 +77,7 @@ fn local_testnet_genesis_config() -> RuntimeGenesisConfig {
 
 /// Provides the JSON representation of predefined genesis config for given `id`.
 pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
-    let genesis = match id.as_ref() {
+    let _genesis = match id.as_ref() {
         sp_genesis_builder::DEV_RUNTIME_PRESET => development_genesis_config(),
         sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET => local_testnet_genesis_config(),
         _ => return None,
