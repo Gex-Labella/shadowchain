@@ -1,12 +1,11 @@
 //! Runtime API implementations for the Shadow Chain.
 
 use crate::{
-    AccountId, Balance, Block, BlockNumber, Executive, Header, Nonce, Runtime,
+    AccountId, Balance, Block, Executive, Header, Nonce, Runtime,
     RuntimeGenesisConfig, SessionKeys, System, TransactionPayment, VERSION,
 };
 use frame_support::{
     genesis_builder_helper::{build_state, get_preset},
-    traits::ConstU32,
     weights::Weight,
 };
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
@@ -23,8 +22,6 @@ use sp_runtime::{
 use sp_std::vec::Vec;
 use sp_version::RuntimeVersion;
 
-// Alias for readability
-type ExtrinsicFor<R> = <Block as BlockT>::Extrinsic;
 
 impl_runtime_apis! {
     impl sp_api::Core<Block> for Runtime {
@@ -56,7 +53,7 @@ impl_runtime_apis! {
     }
 
     impl sp_block_builder::BlockBuilder<Block> for Runtime {
-        fn apply_extrinsic(extrinsic: ExtrinsicFor<Runtime>) -> ApplyExtrinsicResult {
+        fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
             Executive::apply_extrinsic(extrinsic)
         }
 
@@ -64,7 +61,7 @@ impl_runtime_apis! {
             Executive::finalize_block()
         }
 
-        fn inherent_extrinsics(data: InherentData) -> Vec<ExtrinsicFor<Runtime>> {
+        fn inherent_extrinsics(data: InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
             data.create_extrinsics()
         }
 
@@ -79,7 +76,7 @@ impl_runtime_apis! {
     impl sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block> for Runtime {
         fn validate_transaction(
             source: TransactionSource,
-            tx: ExtrinsicFor<Runtime>,
+            tx: <Block as BlockT>::Extrinsic,
             block_hash: <Runtime as frame_system::Config>::Hash,
         ) -> TransactionValidity {
             Executive::validate_transaction(source, tx, block_hash)
@@ -116,7 +113,6 @@ impl_runtime_apis! {
 
     impl sp_consensus_grandpa::GrandpaApi<Block> for Runtime {
         fn grandpa_authorities() -> sp_consensus_grandpa::AuthorityList {
-            use pallet_grandpa::AuthorityList;
             pallet_grandpa::Authorities::<Runtime>::get()
         }
 
@@ -155,10 +151,10 @@ impl_runtime_apis! {
         Block,
         Balance,
     > for Runtime {
-        fn query_info(uxt: ExtrinsicFor<Runtime>, len: u32) -> RuntimeDispatchInfo<Balance> {
+        fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
             TransactionPayment::query_info(uxt, len)
         }
-        fn query_fee_details(uxt: ExtrinsicFor<Runtime>, len: u32) -> FeeDetails<Balance> {
+        fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
             TransactionPayment::query_fee_details(uxt, len)
         }
         fn query_weight_to_fee(weight: Weight) -> Balance {
@@ -246,5 +242,3 @@ impl_runtime_apis! {
         }
     }
 }
-
-pub const RUNTIME_API_VERSIONS: sp_version::ApisVec = sp_version::create_apis_vec!([]);

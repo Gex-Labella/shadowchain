@@ -1,17 +1,17 @@
 //! Runtime configurations for the Shadow Chain.
 
 use crate::{
-    AccountId, Balance, Block, BlockNumber, PalletInfo, Runtime, RuntimeCall, RuntimeEvent,
+    Balance, Block, BlockNumber, Runtime, RuntimeCall, RuntimeEvent,
     RuntimeHoldReason, VERSION,
 };
 use frame_support::{
     derive_impl, parameter_types,
     traits::{ConstBool, ConstU32, ConstU64, ConstU128},
-    weights::{constants::RocksDbWeight, ConstantMultiplier, Weight},
+    weights::{constants::RocksDbWeight, IdentityFee, Weight},
 };
 use frame_system::limits::{BlockLength, BlockWeights};
-use pallet_transaction_payment::{FungibleAdapter, Multiplier};
-use sp_runtime::{traits::IdentityFee, Perbill};
+use pallet_transaction_payment::{FungibleAdapter, Multiplier, ConstFeeMultiplier};
+use sp_runtime::Perbill;
 
 /// We assume that ~5% of the block weight is consumed by `on_initialize` handlers. This is
 /// used to limit the maximal weight of a single extrinsic.
@@ -104,6 +104,7 @@ impl pallet_balances::Config for Runtime {
     type RuntimeFreezeReason = ();
     type FreezeIdentifier = ();
     type MaxFreezes = ();
+    type DoneSlashHandler = ();
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -120,30 +121,19 @@ impl pallet_timestamp::Config for Runtime {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const TransactionByteFee: Balance = 1;
+    pub FeeMultiplier: Multiplier = Multiplier::one();
+}
+
 impl pallet_transaction_payment::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type OnChargeTransaction = FungibleAdapter<Balances, ()>;
     type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<Balance>;
     type LengthToFee = IdentityFee<Balance>;
-    type FeeMultiplierUpdate = ConstFeeMultiplier<Multiplier>;
-}
-
-pub struct ConstFeeMultiplier<M: Get<Multiplier>>(sp_std::marker::PhantomData<M>);
-
-impl<M: Get<Multiplier>> frame_support::traits::MultiplierUpdate for ConstFeeMultiplier<M> {
-    fn min() -> Multiplier {
-        M::get()
-    }
-    fn max() -> Multiplier {
-        M::get()
-    }
-    fn target() -> Perbill {
-        Perbill::zero()
-    }
-    fn variability() -> Perbill {
-        Perbill::zero()
-    }
+    type FeeMultiplierUpdate = ConstFeeMultiplier<FeeMultiplier>;
+    type WeightInfo = ();
 }
 
 impl pallet_aura::Config for Runtime {
@@ -164,13 +154,22 @@ impl pallet_grandpa::Config for Runtime {
     type EquivocationReportSystem = ();
 }
 
-impl pallet_shadow::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
+parameter_types! {
+    pub const MaxItemsPerAccount: u32 = 100;
+    pub const MaxCidLength: u32 = 100;
+    pub const MaxKeyLength: u32 = 512;
+    pub const MaxMetadataLength: u32 = 256;
+    pub const MaxMessageHashLength: u32 = 64;
 }
 
-// Create the runtime by composing the FRAME pallets that were previously configured.
-use super::{Aura, Balances, Grandpa, Shadow, Sudo, System, Timestamp, TransactionPayment};
+impl pallet_shadow::Config for Runtime {
+    type WeightInfo = ();
+    type MaxItemsPerAccount = MaxItemsPerAccount;
+    type MaxCidLength = MaxCidLength;
+    type MaxKeyLength = MaxKeyLength;
+    type MaxMetadataLength = MaxMetadataLength;
+    type MaxMessageHashLength = MaxMessageHashLength;
+}
 
-use sp_runtime::traits::{ConstU128, ConstU8, Get};
+use sp_runtime::traits::{ConstU8, Get};
 use sp_std;

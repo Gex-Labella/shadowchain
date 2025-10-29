@@ -1,11 +1,10 @@
 //! Genesis config presets for the Shadow Chain runtime.
 
 use crate::{
-    AccountId, Balance, BalancesConfig, RuntimeGenesisConfig, SessionKeys, Signature, SudoConfig,
+    AccountId, Balance, BalancesConfig, RuntimeGenesisConfig, Signature, SudoConfig,
     EXISTENTIAL_DEPOSIT,
 };
-use alloc::{vec, vec::Vec};
-use serde_json::Value;
+use alloc::{format, vec, vec::Vec};
 use sp_core::{sr25519, Pair, Public};
 use sp_genesis_builder::PresetId;
 use sp_runtime::traits::{IdentifyAccount, Verify};
@@ -53,10 +52,10 @@ fn configure_accounts_for_testing() -> Vec<(AccountId, Balance)> {
 }
 
 /// Configure initial storage state for FRAME modules.
-fn development_genesis_config() -> serde_json::Value {
+fn development_genesis_config() -> RuntimeGenesisConfig {
     let endowed_accounts = configure_accounts_for_testing();
 
-    let genesis_config = RuntimeGenesisConfig {
+    RuntimeGenesisConfig {
         system: Default::default(),
         balances: BalancesConfig {
             balances: endowed_accounts.clone(),
@@ -68,28 +67,26 @@ fn development_genesis_config() -> serde_json::Value {
         },
         transaction_payment: Default::default(),
         shadow: Default::default(),
-    };
-
-    serde_json::to_value(genesis_config).expect("Failed to build genesis config")
+    }
 }
 
 /// Configure initial storage state for FRAME modules.
-fn local_testnet_genesis_config() -> Value {
+fn local_testnet_genesis_config() -> RuntimeGenesisConfig {
     development_genesis_config()
 }
 
 /// Provides the JSON representation of predefined genesis config for given `id`.
 pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
-    let patch = match id.try_into() {
+    let genesis = match id.try_into() {
         Ok(sp_genesis_builder::DEV_RUNTIME_PRESET) => development_genesis_config(),
         Ok(sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET) => local_testnet_genesis_config(),
         _ => return None,
     };
-    Some(
-        serde_json::to_string(&patch)
-            .expect("serialization to json is expected to work. qed.")
-            .into_bytes(),
-    )
+    
+    // Using alloc-compatible serde_json serialization
+    serde_json::to_string(&genesis)
+        .ok()
+        .map(|s| s.into_bytes())
 }
 
 /// List of supported presets.
