@@ -54,12 +54,6 @@ parameter_types! {
     pub const SS58Prefix: u8 = 42;
 }
 
-/// The version information used to identify this runtime when compiled natively.
-#[cfg(feature = "std")]
-pub fn native_version() -> sp_version::NativeVersion {
-    sp_version::NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
-}
-
 /// Implements the configuration trait for the System pallet.
 #[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]
 impl frame_system::Config for Runtime {
