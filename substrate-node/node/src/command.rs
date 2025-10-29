@@ -5,11 +5,10 @@ use crate::{
     cli::{Cli, Subcommand},
     service,
 };
-use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
-use shadowchain_runtime::{Block, EXISTENTIAL_DEPOSIT};
+use frame_benchmarking_cli::BenchmarkCmd;
+use shadowchain_runtime::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
-use sp_keyring::Sr25519Keyring;
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {
@@ -46,9 +45,6 @@ impl SubstrateCli for Cli {
         })
     }
 
-    fn native_runtime_version(_: &Box<dyn ChainSpec>) -> &'static RuntimeVersion {
-        &shadowchain_runtime::VERSION
-    }
 }
 
 /// Parse and run command line arguments
@@ -161,6 +157,10 @@ pub fn run() -> sc_cli::Result<()> {
                     BenchmarkCmd::Extrinsic(cmd) => {
                         let PartialComponents { client, .. } = service::new_partial(&config)?;
                         // Register the *Remark* and *TKA* builders.
+                        use frame_benchmarking_cli::ExtrinsicFactory;
+                        use sp_keyring::Sr25519Keyring;
+                        use shadowchain_runtime::EXISTENTIAL_DEPOSIT;
+                        
                         let ext_factory = ExtrinsicFactory(vec![
                             Box::new(RemarkBuilder::new(client.clone())),
                             Box::new(TransferKeepAliveBuilder::new(
@@ -173,6 +173,7 @@ pub fn run() -> sc_cli::Result<()> {
                         cmd.run(client, inherent_benchmark_data()?, Vec::new(), &ext_factory)
                     }
                     BenchmarkCmd::Machine(cmd) => {
+                        use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
                         cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
                     }
                 }
@@ -180,7 +181,7 @@ pub fn run() -> sc_cli::Result<()> {
         }
         #[cfg(feature = "try-runtime")]
         Some(Subcommand::TryRuntime(cmd)) => {
-            use shadowchain_runtime::MILLISECS_PER_BLOCK;
+            use shadowchain_runtime::MILLI_SECS_PER_BLOCK;
             use try_runtime_cli::block_building_info::timestamp_with_aura_info;
 
             let runner = cli.create_runner(cmd)?;
@@ -190,7 +191,7 @@ pub fn run() -> sc_cli::Result<()> {
                 let task_manager =
                     sc_service::TaskManager::new(config.tokio_handle.clone(), registry)
                         .map_err(|e| sc_cli::Error::Service(sc_service::Error::Prometheus(e)))?;
-                let info_provider = timestamp_with_aura_info(MILLISECS_PER_BLOCK);
+                let info_provider = timestamp_with_aura_info(MILLI_SECS_PER_BLOCK);
 
                 Ok((
                     cmd.run::<Block, service::ExecutorDispatch, _>(config, info_provider),
@@ -212,17 +213,17 @@ pub fn run() -> sc_cli::Result<()> {
 }
 
 /// Inherent data provider for benchmarks
-fn inherent_benchmark_data() -> Result<sc_client_api::InherentData, sc_cli::Error> {
-    use shadowchain_runtime::{Block, MILLISECS_PER_BLOCK, SLOT_DURATION};
+fn inherent_benchmark_data() -> Result<sp_inherents::InherentData, sc_cli::Error> {
+    use shadowchain_runtime::{MILLI_SECS_PER_BLOCK, SLOT_DURATION};
     use sp_inherents::InherentDataProvider;
 
-    let mut inherent_data = sc_client_api::InherentData::new();
-    let d = std::time::Duration::from_millis(MILLISECS_PER_BLOCK);
+    let mut inherent_data = sp_inherents::InherentData::new();
+    let d = std::time::Duration::from_millis(MILLI_SECS_PER_BLOCK);
     let timestamp = sp_timestamp::InherentDataProvider::new(d.into());
     let slot_duration = sp_consensus_aura::inherents::InherentDataProvider::new(
         sp_consensus_aura::Slot::from_timestamp(
             sp_timestamp::Timestamp::new(d.into()),
-            sp_consensus_slots::SlotDuration::from_millis(SLOT_DURATION),
+            sp_consensus_aura::SlotDuration::from_millis(SLOT_DURATION),
         ),
     );
 
@@ -268,7 +269,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
         let extrinsic: sp_runtime::OpaqueExtrinsic = create_extrinsic(
             self.client.as_ref(),
             acc,
-            SystemCall::remark { remark: vec![] },
+            shadowchain_runtime::SystemCall::remark { remark: vec![] },
             Some(nonce),
         )
         .into();
@@ -280,13 +281,13 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
 #[cfg(feature = "runtime-benchmarks")]
 struct TransferKeepAliveBuilder {
     client: Arc<service::FullClient>,
-    dest: AccountId,
-    value: Balance,
+    dest: shadowchain_runtime::AccountId,
+    value: shadowchain_runtime::Balance,
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 impl TransferKeepAliveBuilder {
-    fn new(client: Arc<service::FullClient>, dest: AccountId, value: Balance) -> Self {
+    fn new(client: Arc<service::FullClient>, dest: shadowchain_runtime::AccountId, value: shadowchain_runtime::Balance) -> Self {
         Self { client, dest, value }
     }
 }
@@ -306,7 +307,7 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
         let extrinsic: sp_runtime::OpaqueExtrinsic = create_extrinsic(
             self.client.as_ref(),
             acc,
-            BalancesCall::transfer_keep_alive {
+            shadowchain_runtime::BalancesCall::transfer_keep_alive {
                 dest: self.dest.clone().into(),
                 value: self.value,
             },
@@ -385,6 +386,4 @@ fn create_extrinsic(
     )
 }
 
-use shadowchain_runtime::{AccountId, Balance, BalancesCall, SystemCall};
-use sp_runtime::traits::Saturating;
 use std::sync::Arc;

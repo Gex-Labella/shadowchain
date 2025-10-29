@@ -146,7 +146,7 @@ fn testnet_genesis(
             balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 60)).collect(),
         },
         aura: AuraConfig {
-            authorities: initial_authorities.iter().map(|x| (x.0.clone())).collect(),
+            authorities: initial_authorities.iter().map(|x| x.0.clone()).collect(),
         },
         grandpa: GrandpaConfig {
             authorities: initial_authorities.iter().map(|x| (x.1.clone(), 1)).collect(),

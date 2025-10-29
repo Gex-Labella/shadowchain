@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use shadowchain_runtime::{opaque::Block, AccountId, Balance, Index};
+use shadowchain_runtime::{opaque::Block, AccountId, Balance, Nonce};
 use sc_client_api::AuxStore;
 pub use sc_rpc_api::DenyUnsafe;
 use sc_transaction_pool_api::TransactionPool;
@@ -34,7 +34,7 @@ where
     C: HeaderBackend<Block> + HeaderMetadata<Block, Error = BlockChainError> + 'static,
     C: Send + Sync + 'static,
     C: AuxStore,
-    C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
+    C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
     C::Api: BlockBuilder<Block>,
     P: TransactionPool + 'static,

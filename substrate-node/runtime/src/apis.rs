@@ -3,7 +3,7 @@
 use crate::{
     AccountId, Balance, Block, Executive, Header, Nonce, Runtime,
     RuntimeGenesisConfig, SessionKeys, System, TransactionPayment, VERSION,
-    InherentDataExt, AllPalletsWithSystem,
+    InherentDataExt,
 };
 use frame_support::{
     genesis_builder_helper::{build_state, get_preset},
@@ -23,6 +23,8 @@ use sp_runtime::{
 use sp_std::vec::Vec;
 use sp_version::RuntimeVersion;
 
+/// Opaque types for the runtime API.
+pub struct RuntimeApi;
 
 impl_runtime_apis! {
     impl sp_api::Core<Block> for Runtime {

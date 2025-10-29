@@ -1,12 +1,12 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use futures::FutureExt;
-use shadowchain_runtime::{self, opaque::Block, RuntimeApi};
+use shadowchain_runtime::{self, opaque::Block};
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
 pub use sc_executor::NativeElseWasmExecutor;
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
@@ -24,7 +24,7 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
     type ExtendHostFunctions = ();
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-        shadowchain_runtime::api::dispatch(method, data)
+        shadowchain_runtime::apis::api::dispatch(method, data)
     }
 
     fn native_version() -> sc_executor::NativeVersion {
@@ -33,7 +33,7 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 }
 
 pub(crate) type FullClient =
-    sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+    sc_service::TFullClient<Block, shadowchain_runtime::apis::RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
@@ -46,7 +46,7 @@ pub fn new_partial(
         FullBackend,
         FullSelectChain,
         sc_consensus::DefaultImportQueue<Block>,
-        sc_transaction_pool::FullPool<Block, FullClient>,
+        sc_transaction_pool::BasicPool<Block, FullClient>,
         (
             sc_consensus_grandpa::GrandpaBlockImport<
                 FullBackend,
@@ -74,7 +74,7 @@ pub fn new_partial(
     let executor = sc_service::new_native_or_wasm_executor(&config);
 
     let (client, backend, keystore_container, task_manager) =
-        sc_service::new_full_parts::<Block, RuntimeApi, _>(
+        sc_service::new_full_parts::<Block, shadowchain_runtime::apis::RuntimeApi, _>(
             config,
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
             executor,
@@ -172,7 +172,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
             spawn_handle: task_manager.spawn_handle(),
             import_queue,
             block_announce_validator_builder: None,
-            warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
+            warp_sync_params: None,
         })?;
 
     if config.offchain_worker.enabled {
