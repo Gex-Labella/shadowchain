@@ -83,3 +83,30 @@ substrate-wasm-builder = { git = "https://github.com/paritytech/polkadot-sdk", t
 # Additional dependencies for runtime
 sp-genesis-builder = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 frame-metadata-hash-extension = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+
+# Cumulus dependencies for parachain support
+cumulus-client-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-client-collator = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-client-consensus-aura = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-client-consensus-common = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-client-network = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-client-service = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-pallet-aura-ext = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-pallet-xcm = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-primitives-core = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-relay-chain-interface = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+parachain-info = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+
+# Polkadot dependencies
+polkadot-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+polkadot-primitives = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+polkadot-service = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+xcm = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+
+# Additional pallets
+pallet-collator-selection = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+pallet-xcm = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }

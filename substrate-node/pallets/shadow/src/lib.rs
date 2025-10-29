@@ -7,6 +7,11 @@
 // Re-export pallet items so that they can be accessed from the crate namespace.
 pub use pallet::*;
 
+// Import codec traits for encoding/decoding
+use codec::{Decode, Encode};
+use scale_info::TypeInfo;
+use sp_runtime::{traits::{Hash, SaturatedConversion}, RuntimeDebug};
+
 #[cfg(test)]
 mod mock;
 
@@ -124,14 +129,14 @@ pub mod pallet {
 
 			// Generate unique ID for this item
 			let nonce = frame_system::Pallet::<T>::account_nonce(&who);
-			let item_id = T::Hashing::hash_of(&(&who, &nonce, &cid));
+			let item_id = <T::Hashing as Hash>::hash_of(&(&who, &nonce, &cid));
 
 			// Create the shadow item
 			let item = ShadowItem {
 				id: item_id.encode(),
 				cid: cid.clone(),
 				encrypted_key,
-				timestamp: frame_system::Pallet::<T>::block_number().saturated_into::<u64>(),
+				timestamp: <BlockNumberFor<T> as SaturatedConversion>::saturated_into::<u64>(frame_system::Pallet::<T>::block_number()),
 				source,
 				metadata,
 			};

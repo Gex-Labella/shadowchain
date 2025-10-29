@@ -57,6 +57,22 @@ frame-benchmarking-cli = { workspace = true }
 # Additional dependencies
 sp-blockchain = { workspace = true }
 
+# Cumulus dependencies for parachain
+cumulus-client-cli = { workspace = true }
+cumulus-client-collator = { workspace = true }
+cumulus-client-consensus-aura = { workspace = true }
+cumulus-client-consensus-common = { workspace = true }
+cumulus-client-network = { workspace = true }
+cumulus-client-service = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+cumulus-primitives-parachain-inherent = { workspace = true }
+cumulus-relay-chain-interface = { workspace = true }
+
+# Polkadot dependencies
+polkadot-cli = { workspace = true }
+polkadot-primitives = { workspace = true }
+polkadot-service = { workspace = true }
+
 # Local dependencies
 shadowchain-runtime = { path = "../runtime" }
 

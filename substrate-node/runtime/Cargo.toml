@@ -48,6 +48,22 @@ pallet-timestamp = { workspace = true }
 pallet-transaction-payment = { workspace = true }
 pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 
+# Cumulus dependencies for parachain
+cumulus-pallet-aura-ext = { workspace = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-xcm = { workspace = true }
+cumulus-pallet-xcmp-queue = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+parachain-info = { workspace = true }
+
+# XCM dependencies
+xcm = { workspace = true }
+pallet-xcm = { workspace = true }
+
+# Additional pallets for parachain
+pallet-collator-selection = { workspace = true }
+pallet-session = { workspace = true }
+
 # Local dependencies
 pallet-shadow = { path = "../pallets/shadow", default-features = false }
 
@@ -88,6 +104,16 @@ std = [
     "pallet-timestamp/std",
     "pallet-transaction-payment/std",
     "pallet-transaction-payment-rpc-runtime-api/std",
+    "cumulus-pallet-aura-ext/std",
+    "cumulus-pallet-parachain-system/std",
+    "cumulus-pallet-xcm/std",
+    "cumulus-pallet-xcmp-queue/std",
+    "cumulus-primitives-core/std",
+    "parachain-info/std",
+    "xcm/std",
+    "pallet-xcm/std",
+    "pallet-collator-selection/std",
+    "pallet-session/std",
     "pallet-shadow/std",
     "substrate-wasm-builder",
 ]
@@ -99,6 +125,10 @@ runtime-benchmarks = [
     "pallet-balances/runtime-benchmarks",
     "pallet-grandpa/runtime-benchmarks",
     "pallet-timestamp/runtime-benchmarks",
+    "cumulus-pallet-parachain-system/runtime-benchmarks",
+    "cumulus-pallet-xcmp-queue/runtime-benchmarks",
+    "pallet-xcm/runtime-benchmarks",
+    "pallet-collator-selection/runtime-benchmarks",
     "pallet-shadow/runtime-benchmarks",
     "sp-runtime/runtime-benchmarks",
 ]
@@ -113,6 +143,14 @@ try-runtime = [
     "pallet-sudo/try-runtime",
     "pallet-timestamp/try-runtime",
     "pallet-transaction-payment/try-runtime",
+    "cumulus-pallet-aura-ext/try-runtime",
+    "cumulus-pallet-parachain-system/try-runtime",
+    "cumulus-pallet-xcm/try-runtime",
+    "cumulus-pallet-xcmp-queue/try-runtime",
+    "parachain-info/try-runtime",
+    "pallet-xcm/try-runtime",
+    "pallet-collator-selection/try-runtime",
+    "pallet-session/try-runtime",
     "pallet-shadow/try-runtime",
     "sp-runtime/try-runtime",
 ]
