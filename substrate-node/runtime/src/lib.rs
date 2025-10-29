@@ -202,6 +202,9 @@ mod runtime {
 // The runtime types are automatically exported by the #[frame_support::runtime] macro
 // and are available at the crate level without explicit re-export
 
+// Re-export RuntimeApi for the node
+pub use apis::RuntimeApi;
+
 /// The `TransactionExtension` to the basic transaction logic.
 pub type TxExtension = (
     frame_system::AuthorizeCall<Runtime>,

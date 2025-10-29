@@ -6,11 +6,11 @@ use std::{sync::Arc, time::Duration};
 // Local Runtime Types
 use shadowchain_runtime::{
     opaque::{Block, Hash},
-    Runtime, RuntimeApi,
+    Runtime,
 };
 
 // Cumulus Imports
-use cumulus_client_bootnodes::{start_bootnode_tasks, StartBootnodeTasksParams};
+use cumulus_client_network::{start_bootnode_tasks, StartBootnodeTasksParams};
 use cumulus_client_cli::CollatorOptions;
 use cumulus_client_collator::service::CollatorService;
 use cumulus_client_consensus_aura::collators::lookahead::{self as aura, Params as AuraParams};
@@ -29,6 +29,7 @@ use cumulus_relay_chain_interface::{OverseerHandle, RelayChainInterface};
 // Substrate Imports
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use prometheus_endpoint::Registry;
+use log::warn;
 use sc_client_api::Backend;
 use sc_consensus::ImportQueue;
 use sc_executor::{HeapAllocStrategy, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY};
@@ -37,7 +38,7 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ProvideRuntimeApi;
-use sp_keystore::KeystorePtr;
+use sc_keystore::KeystorePtr;
 
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
 
@@ -143,7 +144,7 @@ fn build_import_queue(
     telemetry: Option<TelemetryHandle>,
     task_manager: &TaskManager,
 ) -> Result<sc_consensus::DefaultImportQueue<Block>, sc_service::Error> {
-    Ok(cumulus_client_consensus_aura::equivocation_import_queue::fully_verifying_import_queue::<
+    cumulus_client_consensus_aura::equivocation_import_queue::fully_verifying_import_queue::<
         sp_consensus_aura::sr25519::AuthorityPair,
         _,
         _,
@@ -159,7 +160,7 @@ fn build_import_queue(
         &task_manager.spawn_essential_handle(),
         config.prometheus_registry(),
         telemetry,
-    )?)
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -223,7 +224,7 @@ fn start_consensus(
 }
 
 /// Start a node with the given parachain `Configuration` and relay chain `Configuration`.
-#[sc_tracing::logging::prefix_logs_with("Parachain")]
+#[sc_cli::prefix_logs_with("Parachain")]
 pub async fn start_parachain_node(
     parachain_config: Configuration,
     polkadot_config: Configuration,
@@ -350,7 +351,7 @@ pub async fn start_parachain_node(
         // requirements for a para-chain are dictated by its relay-chain.
         match SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench, false) {
             Err(err) if validator => {
-                log::warn!(
+                warn!(
                 "⚠️  The hardware does not meet the minimal requirements {} for role 'Authority'.",
                 err
             );
@@ -359,7 +360,7 @@ pub async fn start_parachain_node(
         }
 
         if let Some(ref mut telemetry) = telemetry {
-            let telemetry_handle = telemetry.handle();
+            let telemetry_handle = telemetry.handle::<()>();
             task_manager.spawn_handle().spawn(
                 "telemetry_hwbench",
                 None,

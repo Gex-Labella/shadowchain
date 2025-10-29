@@ -1,9 +1,10 @@
 //! Shadow Chain specification.
 
 use shadowchain_runtime as runtime;
-use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
-use sc_service::ChainType;
+use sc_service::{ChainType, Properties};
 use serde::{Deserialize, Serialize};
+use sp_core::Pair;
+use sp_runtime::traits::IdentifyAccount;
 
 /// Specialized `ChainSpec` for the normal parachain runtime.
 pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
@@ -12,7 +13,8 @@ pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
 pub const RELAY_CHAIN: &str = "rococo-local";
 
 /// The extensions for the [`ChainSpec`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ChainSpecGroup, ChainSpecExtension)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Extensions {
     /// The relay chain of the Parachain.
     #[serde(alias = "relayChain", alias = "RelayChain")]
@@ -25,14 +27,36 @@ pub struct Extensions {
 impl Extensions {
     /// Try to get the extension from the given `ChainSpec`.
     pub fn try_get(chain_spec: &dyn sc_service::ChainSpec) -> Option<&Self> {
-        sc_chain_spec::get_extension(chain_spec.extensions())
+        sc_chain_spec::Extension::try_get(chain_spec.extensions())
+    }
+}
+
+impl sc_chain_spec::Extension for Extensions {
+    type Forks = Option<()>;
+
+    fn get<T: 'static>(&self) -> Option<&T> {
+        None
+    }
+
+    fn get_any(&self, _: std::any::TypeId) -> &dyn std::any::Any {
+        self
+    }
+
+    fn get_any_mut(&mut self, _: std::any::TypeId) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+impl From<Extensions> for sc_chain_spec::ChainSpecExtension {
+    fn from(ext: Extensions) -> Self {
+        Self::new(ext)
     }
 }
 
 type AccountPublic = <runtime::Signature as sp_runtime::traits::Verify>::Signer;
 
 /// Helper function to generate a crypto pair from seed.
-pub fn get_from_seed<TPublic: sp_core::Public>(seed: &str) -> <TPublic::Pair as sp_core::Pair>::Public {
+pub fn get_from_seed<TPublic: sp_core::Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
     TPublic::Pair::from_string(&format!("//{}", seed), None)
         .expect("static values are valid; qed")
         .public()
@@ -44,6 +68,7 @@ pub fn get_from_seed<TPublic: sp_core::Public>(seed: &str) -> <TPublic::Pair as 
 pub fn get_collator_keys_from_seed(seed: &str) -> runtime::SessionKeys {
     runtime::SessionKeys {
         aura: get_from_seed::<runtime::AuraId>(seed),
+        grandpa: get_from_seed::<runtime::GrandpaId>(seed),
     }
 }
 
@@ -57,7 +82,7 @@ where
 
 pub fn development_config() -> ChainSpec {
     // Give your base currency a unit name and decimal places
-    let mut properties = sc_chain_spec::Properties::new();
+    let mut properties = Properties::new();
     properties.insert("tokenSymbol".into(), "SHDW".into());
     properties.insert("tokenDecimals".into(), 12.into());
     properties.insert("ss58Format".into(), 42.into());
@@ -72,14 +97,14 @@ pub fn development_config() -> ChainSpec {
     .with_name("Shadow Development")
     .with_id("shadow_dev")
     .with_chain_type(ChainType::Development)
-    .with_genesis_config_preset_name(sp_genesis_builder::DEV_RUNTIME_PRESET)
+    .with_genesis_config_preset_name("development")
     .with_properties(properties)
     .build()
 }
 
 pub fn local_testnet_config() -> ChainSpec {
     // Give your base currency a unit name and decimal places
-    let mut properties = sc_chain_spec::Properties::new();
+    let mut properties = Properties::new();
     properties.insert("tokenSymbol".into(), "SHDW".into());
     properties.insert("tokenDecimals".into(), 12.into());
     properties.insert("ss58Format".into(), 42.into());
@@ -94,7 +119,7 @@ pub fn local_testnet_config() -> ChainSpec {
     .with_name("Shadow Local Testnet")
     .with_id("shadow_local_testnet")
     .with_chain_type(ChainType::Local)
-    .with_genesis_config_preset_name(sc_chain_spec::LOCAL_TESTNET_RUNTIME_PRESET)
+    .with_genesis_config_preset_name("local_testnet")
     .with_protocol_id("shadow-local")
     .with_properties(properties)
     .build()

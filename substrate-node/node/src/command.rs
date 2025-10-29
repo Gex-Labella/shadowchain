@@ -4,6 +4,7 @@ use cumulus_client_service::storage_proof_size::HostFunctions as ReclaimHostFunc
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use log::info;
 use shadowchain_runtime::Block;
+use sc_sysinfo::HwBench;
 use sc_cli::{
     ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
     NetworkParams, Result, RpcEndpoint, SharedParams, SubstrateCli,
@@ -250,9 +251,8 @@ pub fn run() -> Result<()> {
                     .then(|| {
                         config.database.path().map(|database_path| {
                             let _ = std::fs::create_dir_all(database_path);
-                            sc_sysinfo::gather_hwbench(
-                                Some(database_path),
-                                &SUBSTRATE_REFERENCE_HARDWARE,
+                            HwBench::new(
+                                Some(database_path)
                             )
                         })
                     })
