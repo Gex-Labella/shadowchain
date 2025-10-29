@@ -1,7 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use futures::FutureExt;
-use shadowchain_runtime::{self, opaque::Block};
+use shadowchain_runtime::{self, opaque::Block, Runtime};
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
 use sc_consensus_grandpa::SharedVoterState;
@@ -24,7 +24,7 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
     type ExtendHostFunctions = ();
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-        shadowchain_runtime::apis::api::dispatch(method, data)
+        shadowchain_runtime::api::dispatch(method, data)
     }
 
     fn native_version() -> sc_executor::NativeVersion {
@@ -33,7 +33,7 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 }
 
 pub(crate) type FullClient =
-    sc_service::TFullClient<Block, shadowchain_runtime::apis::RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+    sc_service::TFullClient<Block, Runtime, NativeElseWasmExecutor<ExecutorDispatch>>;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
@@ -74,7 +74,7 @@ pub fn new_partial(
     let executor = sc_service::new_native_or_wasm_executor(&config);
 
     let (client, backend, keystore_container, task_manager) =
-        sc_service::new_full_parts::<Block, shadowchain_runtime::apis::RuntimeApi, _>(
+        sc_service::new_full_parts::<Block, Runtime, _>(
             config,
             telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
             executor,
