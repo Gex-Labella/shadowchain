@@ -23,9 +23,6 @@ use sp_runtime::{
 use sp_std::vec::Vec;
 use sp_version::RuntimeVersion;
 
-/// Opaque types for the runtime API.
-pub struct RuntimeApi;
-
 impl_runtime_apis! {
     impl sp_api::Core<Block> for Runtime {
         fn version() -> RuntimeVersion {
