@@ -68,7 +68,7 @@ pallet-session = { workspace = true }
 pallet-shadow = { path = "../pallets/shadow", default-features = false }
 
 [build-dependencies]
-substrate-wasm-builder = { workspace = true, optional = true }
+substrate-wasm-builder = { workspace = true }
 
 [features]
 default = ["std"]
