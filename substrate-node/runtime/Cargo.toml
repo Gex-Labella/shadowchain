@@ -115,7 +115,6 @@ std = [
     "pallet-collator-selection/std",
     "pallet-session/std",
     "pallet-shadow/std",
-    "substrate-wasm-builder",
 ]
 runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",
