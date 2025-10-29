@@ -8,9 +8,10 @@
 pub use pallet::*;
 
 // Import codec traits for encoding/decoding
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_runtime::{traits::{Hash, SaturatedConversion}, RuntimeDebug};
+use frame_support::BoundedVec;
 
 #[cfg(test)]
 mod mock;
@@ -35,12 +36,13 @@ pub mod pallet {
 
 	/// The pallet's configuration trait.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// The overarching event type.
-		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
+	pub trait Config: frame_system::Config<RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>> {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
+		
+		/// Maximum number of shadow items per account
+		#[pallet::constant]
+		type MaxItemsPerAccount: Get<u32>;
 	}
 
 	/// Storage map for shadow items by account.
@@ -49,7 +51,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		Vec<ShadowItem>,
+		BoundedVec<ShadowItem, T::MaxItemsPerAccount>,
 		ValueQuery,
 	>;
 
@@ -142,9 +144,10 @@ pub mod pallet {
 			};
 
 			// Store the item
-			<ShadowItems<T>>::mutate(&who, |items| {
-				items.push(item);
-			});
+			<ShadowItems<T>>::try_mutate(&who, |items| -> DispatchResult {
+				items.try_push(item).map_err(|_| Error::<T>::TooManyItems)?;
+				Ok(())
+			})?;
 
 			// Emit event
 			Self::deposit_event(Event::ShadowItemStored { who, item_id, cid });
@@ -238,7 +241,7 @@ pub mod pallet {
 }
 
 /// A shadow item stored on-chain.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct ShadowItem {
 	/// Unique identifier for the item.
 	pub id: Vec<u8>,
@@ -255,7 +258,7 @@ pub struct ShadowItem {
 }
 
 /// A consent record stored on-chain.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct ConsentRecord<BlockNumber> {
 	/// Block number when consent was granted.
 	pub granted_at: BlockNumber,
