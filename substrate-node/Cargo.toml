@@ -97,16 +97,23 @@ cumulus-pallet-xcm = { git = "https://github.com/paritytech/polkadot-sdk", tag =
 cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 cumulus-primitives-core = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+cumulus-primitives-utility = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 cumulus-relay-chain-interface = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
-parachain-info = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+staging-parachain-info = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 
 # Polkadot dependencies
 polkadot-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 polkadot-service = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
-xcm = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+staging-xcm = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 
 # Additional pallets
 pallet-collator-selection = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
 pallet-xcm = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+pallet-message-queue = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+
+# XCM builders and executors
+staging-xcm-builder = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+staging-xcm-executor = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
+polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.20.1", default-features = false }
