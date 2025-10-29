@@ -49,6 +49,11 @@ pallet-transaction-payment-rpc = { workspace = true }
 # These dependencies are used for the node's RPCs
 frame-system-rpc-runtime-api = { workspace = true }
 pallet-transaction-payment-rpc-runtime-api = { workspace = true }
+sc-rpc-api = { workspace = true }
+sp-api = { workspace = true }
+sp-block-builder = { workspace = true }
+substrate-frame-rpc-system = { workspace = true }
+sc-basic-authorship = { workspace = true }
 
 # These dependencies are used for runtime benchmarking
 frame-benchmarking = { workspace = true }
