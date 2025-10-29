@@ -11,8 +11,7 @@ pub use pallet::*;
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_runtime::{traits::{Hash, SaturatedConversion}, RuntimeDebug};
-use frame_support::{BoundedVec, parameter_types};
-use sp_runtime::ConstU32;
+use frame_support::BoundedVec;
 
 #[cfg(test)]
 mod mock;
