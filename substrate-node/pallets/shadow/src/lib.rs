@@ -11,7 +11,8 @@ pub use pallet::*;
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_runtime::{traits::{Hash, SaturatedConversion}, RuntimeDebug};
-use frame_support::BoundedVec;
+use frame_support::{BoundedVec, parameter_types};
+use sp_runtime::ConstU32;
 
 #[cfg(test)]
 mod mock;
@@ -43,6 +44,22 @@ pub mod pallet {
 		/// Maximum number of shadow items per account
 		#[pallet::constant]
 		type MaxItemsPerAccount: Get<u32>;
+		
+		/// Maximum length for CID
+		#[pallet::constant]
+		type MaxCidLength: Get<u32>;
+		
+		/// Maximum length for encrypted key
+		#[pallet::constant]
+		type MaxKeyLength: Get<u32>;
+		
+		/// Maximum length for metadata
+		#[pallet::constant]
+		type MaxMetadataLength: Get<u32>;
+		
+		/// Maximum length for message hash
+		#[pallet::constant]
+		type MaxMessageHashLength: Get<u32>;
 	}
 
 	/// Storage map for shadow items by account.
@@ -51,7 +68,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		BoundedVec<ShadowItem, T::MaxItemsPerAccount>,
+		BoundedVec<ShadowItem<T>, T::MaxItemsPerAccount>,
 		ValueQuery,
 	>;
 
@@ -61,7 +78,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		ConsentRecord<BlockNumberFor<T>>,
+		ConsentRecord<T, BlockNumberFor<T>>,
 		OptionQuery,
 	>;
 
@@ -132,15 +149,23 @@ pub mod pallet {
 			// Generate unique ID for this item
 			let nonce = frame_system::Pallet::<T>::account_nonce(&who);
 			let item_id = <T::Hashing as Hash>::hash_of(&(&who, &nonce, &cid));
+			
+			// Convert vecs to bounded vecs
+			let bounded_cid = BoundedCid::<T>::try_from(cid.clone())
+				.map_err(|_| Error::<T>::CidTooLong)?;
+			let bounded_key = BoundedKey::<T>::try_from(encrypted_key)
+				.map_err(|_| Error::<T>::KeyTooLong)?;
+			let bounded_metadata = BoundedMetadata::<T>::try_from(metadata)
+				.map_err(|_| Error::<T>::MetadataTooLong)?;
 
 			// Create the shadow item
 			let item = ShadowItem {
-				id: item_id.encode(),
-				cid: cid.clone(),
-				encrypted_key,
+				id: item_id.as_ref().try_into().map_err(|_| Error::<T>::InvalidSource)?,
+				cid: bounded_cid,
+				encrypted_key: bounded_key,
 				timestamp: <BlockNumberFor<T> as SaturatedConversion>::saturated_into::<u64>(frame_system::Pallet::<T>::block_number()),
 				source,
-				metadata,
+				metadata: bounded_metadata,
 			};
 
 			// Store the item
@@ -166,8 +191,9 @@ pub mod pallet {
 			// Remove the item if it exists
 			<ShadowItems<T>>::mutate(&who, |items| {
 				items.retain(|item| {
-					let id = T::Hash::decode(&mut &item.id[..]).unwrap_or_default();
-					id != item_id
+					// Compare the hash directly with the stored id
+					let stored_id = T::Hash::decode(&mut &item.id[..]).unwrap_or_default();
+					stored_id != item_id
 				});
 			});
 
@@ -193,13 +219,17 @@ pub mod pallet {
 			let current_block = frame_system::Pallet::<T>::block_number();
 			let expires_at = duration.map(|d| current_block + d);
 
+			// Convert message hash to bounded vec
+			let bounded_hash = BoundedMessageHash::<T>::try_from(message_hash.clone())
+				.map_err(|_| DispatchError::Other("Message hash too long"))?;
+
 			// Store consent record
 			<ConsentRecords<T>>::insert(
 				&who,
 				ConsentRecord {
 					granted_at: current_block,
 					expires_at,
-					message_hash: message_hash.clone(),
+					message_hash: bounded_hash,
 				},
 			);
 
@@ -240,30 +270,38 @@ pub mod pallet {
 	}
 }
 
+/// Type aliases for bounded vectors
+pub type BoundedCid<T> = BoundedVec<u8, <T as Config>::MaxCidLength>;
+pub type BoundedKey<T> = BoundedVec<u8, <T as Config>::MaxKeyLength>;
+pub type BoundedMetadata<T> = BoundedVec<u8, <T as Config>::MaxMetadataLength>;
+pub type BoundedMessageHash<T> = BoundedVec<u8, <T as Config>::MaxMessageHashLength>;
+
 /// A shadow item stored on-chain.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-pub struct ShadowItem {
+#[scale_info(skip_type_params(T))]
+pub struct ShadowItem<T: Config> {
 	/// Unique identifier for the item.
-	pub id: Vec<u8>,
+	pub id: [u8; 32],  // Fixed size for hash output
 	/// IPFS content identifier.
-	pub cid: Vec<u8>,
+	pub cid: BoundedCid<T>,
 	/// Encrypted symmetric key.
-	pub encrypted_key: Vec<u8>,
+	pub encrypted_key: BoundedKey<T>,
 	/// Timestamp when the item was stored.
 	pub timestamp: u64,
 	/// Source of the content (0 = GitHub, 1 = Twitter).
 	pub source: u8,
 	/// Additional metadata.
-	pub metadata: Vec<u8>,
+	pub metadata: BoundedMetadata<T>,
 }
 
 /// A consent record stored on-chain.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-pub struct ConsentRecord<BlockNumber> {
+#[scale_info(skip_type_params(T))]
+pub struct ConsentRecord<T: Config, BlockNumber> {
 	/// Block number when consent was granted.
 	pub granted_at: BlockNumber,
 	/// Optional block number when consent expires.
 	pub expires_at: Option<BlockNumber>,
 	/// Hash of the consent message.
-	pub message_hash: Vec<u8>,
+	pub message_hash: BoundedMessageHash<T>,
 }
