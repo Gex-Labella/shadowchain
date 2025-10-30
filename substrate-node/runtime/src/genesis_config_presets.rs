@@ -27,10 +27,8 @@ where
 }
 
 /// Generate collator keys from seed.
-pub fn get_collator_keys_from_seed(seed: &str) -> sp_consensus_aura::sr25519::Pair {
-    use sp_core::Pair;
-    sp_consensus_aura::sr25519::Pair::from_string(&format!("//{}", seed), None)
-        .expect("static values are valid; qed")
+pub fn get_collator_keys_from_seed(seed: &str) -> sp_consensus_aura::sr25519::AuthorityId {
+    get_from_seed::<sp_consensus_aura::sr25519::AuthorityId>(seed)
 }
 
 fn configure_accounts_for_testing() -> Vec<(AccountId, Balance)> {
@@ -61,20 +59,18 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
     RuntimeGenesisConfig {
         system: Default::default(),
         parachain_system: Default::default(),
-        timestamp: Default::default(),
         parachain_info: staging_parachain_info::GenesisConfig {
             parachain_id: 2000.into(),
             ..Default::default()
         },
-        weight_reclaim: Default::default(),
         balances: pallet_balances::GenesisConfig {
             balances: endowed_accounts,
+            dev_accounts: vec![],
         },
         transaction_payment: Default::default(),
         sudo: pallet_sudo::GenesisConfig {
             key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
         },
-        authorship: Default::default(),
         collator_selection: pallet_collator_selection::GenesisConfig {
             invulnerables: invulnerables.clone(),
             candidacy_bond: EXISTENTIAL_DEPOSIT * 16,
@@ -87,24 +83,21 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
                 .map(|acc| {
                     (
                         acc.clone(),
-                        acc,
+                        acc.clone(),
                         SessionKeys {
-                            aura: get_from_seed::<sp_consensus_aura::sr25519::AuthorityId>(&format!("{:?}", acc)),
+                            aura: get_collator_keys_from_seed(&format!("{:?}", acc)),
                         },
                     )
                 })
                 .collect(),
+            non_authority_keys: vec![],
         },
         aura: Default::default(),
         aura_ext: Default::default(),
-        xcmp_queue: Default::default(),
         polkadot_xcm: pallet_xcm::GenesisConfig {
             safe_xcm_version: Some(3),
             ..Default::default()
         },
-        cumulus_xcm: Default::default(),
-        message_queue: Default::default(),
-        shadow: Default::default(),
     }
 }
 
