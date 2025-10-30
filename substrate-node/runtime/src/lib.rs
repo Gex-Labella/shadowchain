@@ -11,6 +11,7 @@ pub mod apis;
 mod benchmarks;
 pub mod configs;
 pub mod genesis_config_presets;
+pub mod weights;
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -336,7 +337,7 @@ pub use frame_support::{
         StorageInfo,
     },
     weights::{
-        ConstantMultiplier, IdentityFee, Weight,
+        ConstantMultiplier, IdentityFee,
     },
     StorageValue,
 };
