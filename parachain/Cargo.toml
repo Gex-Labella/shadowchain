@@ -15,7 +15,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-parachain-template-runtime = { path = "./runtime", default-features = false }
+shadow-chain-runtime = { path = "./runtime", default-features = false }
 pallet-shadow = { path = "./pallets/shadow", default-features = false }
 clap = { version = "4.5.13" }
 color-print = { version = "0.3.4" }
@@ -34,6 +34,7 @@ serde_json = { version = "1.0.132", default-features = false }
 smallvec = { version = "1.11.0", default-features = false }
 substrate-wasm-builder = { version = "26.0.1", default-features = false }
 frame = { version = "0.9.1", default-features = false, package = "polkadot-sdk-frame" }
+sp-runtime = { version = "38.0.1", default-features = false }
 
 [profile.release]
 opt-level = 3
