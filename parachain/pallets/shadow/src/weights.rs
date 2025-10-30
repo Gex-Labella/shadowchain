@@ -26,7 +26,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
+use polkadot_sdk::frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
 use core::marker::PhantomData;
 
 /// Weight functions needed for pallet_shadow.
@@ -39,7 +39,7 @@ pub trait WeightInfo {
 
 /// Weights for pallet_shadow using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+impl<T: polkadot_sdk::frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// Storage: `Shadow::ConsentRecords` (r:1 w:0)
 	/// Proof: `Shadow::ConsentRecords` (`max_values`: None, `max_size`: Some(69), added: 2544, mode: `MaxEncodedLen`)
 	/// Storage: `System::Account` (r:1 w:0)

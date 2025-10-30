@@ -16,12 +16,12 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 pub mod weights;
-pub use weights::*;
+pub use weights::WeightInfo;
 
 #[frame::pallet]
 pub mod pallet {
 	use frame::prelude::*;
-	use frame::traits::fungible::Inspect;
+	use super::WeightInfo;
 	
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
