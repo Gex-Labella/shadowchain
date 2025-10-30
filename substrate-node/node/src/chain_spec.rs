@@ -2,7 +2,7 @@
 
 use shadowchain_runtime as runtime;
 use sc_service::{ChainType, Properties};
-use sc_chain_spec::{ChainSpecExtension, Extension};
+use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use serde::{Deserialize, Serialize};
 use sp_core::Pair;
 use sp_runtime::traits::IdentifyAccount;
@@ -14,7 +14,7 @@ pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
 pub const RELAY_CHAIN: &str = "rococo-local";
 
 /// The extensions for the [`ChainSpec`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ChainSpecGroup, ChainSpecExtension)]
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
     /// The relay chain of the Parachain.
@@ -28,29 +28,7 @@ pub struct Extensions {
 impl Extensions {
     /// Try to get the extension from the given `ChainSpec`.
     pub fn try_get(chain_spec: &dyn sc_service::ChainSpec) -> Option<&Self> {
-        Extension::try_get(chain_spec.extensions())
-    }
-}
-
-impl Extension for Extensions {
-    type Forks = Option<()>;
-
-    fn get<T: 'static>(&self) -> Option<&T> {
-        None
-    }
-
-    fn get_any(&self, _: std::any::TypeId) -> &dyn std::any::Any {
-        self
-    }
-
-    fn get_any_mut(&mut self, _: std::any::TypeId) -> &mut dyn std::any::Any {
-        self
-    }
-}
-
-impl From<Extensions> for ChainSpecExtension {
-    fn from(ext: Extensions) -> Self {
-        ChainSpecExtension::new(ext)
+        sc_chain_spec::get_extension(chain_spec.extensions())
     }
 }
 

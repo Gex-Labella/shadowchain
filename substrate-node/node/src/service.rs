@@ -37,7 +37,7 @@ use sc_service::{Configuration, PartialComponents, TFullBackend, TFullClient, Ta
 use sc_telemetry::{Telemetry, TelemetryHandle, TelemetryWorker, TelemetryWorkerHandle};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_api::ProvideRuntimeApi;
-use sc_keystore::KeystorePtr;
+use sp_keystore::KeystorePtr;
 
 type ParachainExecutor = WasmExecutor<ParachainHostFunctions>;
 
