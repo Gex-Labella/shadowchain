@@ -2,9 +2,12 @@
 
 mod xcm_config;
 
-use polkadot_sdk::{staging_parachain_info as parachain_info, staging_xcm as xcm, *};
+use staging_parachain_info as parachain_info;
+use staging_xcm as xcm;
 #[cfg(not(feature = "runtime-benchmarks"))]
-use polkadot_sdk::{staging_xcm_builder as xcm_builder, staging_xcm_executor as xcm_executor};
+use staging_xcm_builder as xcm_builder;
+#[cfg(not(feature = "runtime-benchmarks"))]
+use staging_xcm_executor as xcm_executor;
 
 // Substrate and Polkadot dependencies
 use cumulus_pallet_parachain_system::RelayNumberMonotonicallyIncreases;
@@ -35,13 +38,13 @@ use xcm::latest::prelude::BodyId;
 
 // Local module imports
 use super::{
-    weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
     AccountId, Aura, Balance, Balances, Block, BlockNumber, CollatorSelection, ConsensusHook, Hash,
     MessageQueue, Nonce, PalletInfo, ParachainSystem, Runtime, RuntimeCall, RuntimeEvent,
     RuntimeFreezeReason, RuntimeHoldReason, RuntimeOrigin, RuntimeTask, Session, SessionKeys,
     System, WeightToFee, XcmpQueue, Shadow, AVERAGE_ON_INITIALIZE_RATIO, EXISTENTIAL_DEPOSIT, HOURS,
     MAXIMUM_BLOCK_WEIGHT, MICRO_UNIT, NORMAL_DISPATCH_RATIO, SLOT_DURATION, VERSION,
 };
+use crate::weights::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight};
 use xcm_config::{RelayLocation, XcmOriginToTransactDispatchOrigin};
 
 parameter_types! {
@@ -189,7 +192,7 @@ impl cumulus_pallet_parachain_system::Config for Runtime {
     type RelayParentOffset = ConstU32<0>;
 }
 
-impl parachain_info::Config for Runtime {}
+impl staging_parachain_info::Config for Runtime {}
 
 parameter_types! {
     pub MessageQueueServiceWeight: Weight = Perbill::from_percent(35) * RuntimeBlockWeights::get().max_block;
@@ -257,13 +260,12 @@ impl pallet_session::Config for Runtime {
     type KeyDeposit = ();
 }
 
-#[docify::export(aura_config)]
 impl pallet_aura::Config for Runtime {
     type AuthorityId = AuraId;
     type DisabledValidators = ();
     type MaxAuthorities = ConstU32<100_000>;
     type AllowMultipleBlocksPerSlot = ConstBool<true>;
-    type SlotDuration = ConstU64<SLOT_DURATION>;
+    type SlotDuration = ConstU64<{ SLOT_DURATION }>;
 }
 
 parameter_types! {

@@ -82,7 +82,7 @@ impl WeightToFeePolynomial for WeightToFee {
         // in Rococo, extrinsic base weight (smallest non-zero weight) is mapped to 1 MILLI_UNIT:
         // in our template, we map to 1/10 of that, or 1/10 MILLI_UNIT
         let p = MILLI_UNIT / 10;
-        let q = 100 * Balance::from(configs::ExtrinsicBaseWeight::get().ref_time());
+        let q = 100 * Balance::from(weights::ExtrinsicBaseWeight::get().ref_time());
         smallvec![WeightToFeeCoefficient {
             degree: 1,
             negative: false,
@@ -336,7 +336,6 @@ pub use frame_support::{
         StorageInfo,
     },
     weights::{
-        constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_SECOND},
         ConstantMultiplier, IdentityFee, Weight,
     },
     StorageValue,
