@@ -26,12 +26,9 @@ where
     AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-/// Generate an Aura authority key.
-pub fn authority_keys_from_seed(s: &str) -> (sp_consensus_aura::sr25519::AuthorityId, sp_consensus_grandpa::AuthorityId) {
-    (
-        get_from_seed::<sp_consensus_aura::sr25519::AuthorityId>(s),
-        get_from_seed::<sp_consensus_grandpa::AuthorityId>(s),
-    )
+/// Generate collator keys from seed.
+pub fn get_collator_keys_from_seed(seed: &str) -> sp_consensus_aura::sr25519::AuthorityPair {
+    get_from_seed::<sp_consensus_aura::sr25519::AuthorityPair>(seed)
 }
 
 fn configure_accounts_for_testing() -> Vec<(AccountId, Balance)> {
@@ -54,19 +51,42 @@ fn configure_accounts_for_testing() -> Vec<(AccountId, Balance)> {
 /// Configure initial storage state for FRAME modules.
 fn development_genesis_config() -> RuntimeGenesisConfig {
     let endowed_accounts = configure_accounts_for_testing();
+    let invulnerables = vec![
+        get_account_id_from_seed::<sr25519::Public>("Alice"),
+        get_account_id_from_seed::<sr25519::Public>("Bob"),
+    ];
 
     RuntimeGenesisConfig {
-        system: Default::default(),
-        balances: BalancesConfig {
-            balances: endowed_accounts.clone(),
-            dev_accounts: None,
+        parachain_system: Default::default(),
+        parachain_info: shadowchain_runtime::ParachainInfoConfig {
+            parachain_id: 2000.into(),
+            ..Default::default()
         },
-        aura: Default::default(),
-        grandpa: Default::default(),
-        sudo: SudoConfig {
-            key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+        collator_selection: shadowchain_runtime::CollatorSelectionConfig {
+            invulnerables: invulnerables.clone(),
+            candidacy_bond: EXISTENTIAL_DEPOSIT * 16,
+            ..Default::default()
         },
-        transaction_payment: Default::default(),
+        session: shadowchain_runtime::SessionConfig {
+            keys: invulnerables
+                .iter()
+                .cloned()
+                .map(|acc| {
+                    (
+                        acc.clone(),
+                        acc,
+                        shadowchain_runtime::SessionKeys {
+                            aura: get_from_seed::<sp_consensus_aura::sr25519::AuthorityId>(&format!("{:?}", acc)),
+                        },
+                    )
+                })
+                .collect(),
+        },
+        aura_ext: Default::default(),
+        polkadot_xcm: shadowchain_runtime::PolkadotXcmConfig {
+            safe_xcm_version: Some(3),
+            ..Default::default()
+        },
     }
 }
 
@@ -87,7 +107,7 @@ pub fn get_preset(id: &PresetId) -> Option<Vec<u8>> {
     // Return a simple JSON string representation
     // Using Debug format for AccountId since Display is not implemented
     let alice_account = get_account_id_from_seed::<sr25519::Public>("Alice");
-    let json_str = format!("{{\"system\":{{}},\"balances\":{{\"balances\":[],\"dev_accounts\":null}},\"aura\":{{}},\"grandpa\":{{}},\"sudo\":{{\"key\":\"{:?}\"}},\"transaction_payment\":{{}}}}",
+    let json_str = format!("{{\"parachainSystem\":{{}},\"parachainInfo\":{{\"parachainId\":2000}},\"collatorSelection\":{{\"invulnerables\":[\"{:?}\"]}},\"session\":{{}},\"auraExt\":{{}},\"polkadotXcm\":{{\"safeXcmVersion\":3}}}}",
         alice_account);
     Some(json_str.into_bytes())
 }

@@ -342,5 +342,4 @@ pub use frame_support::{
     StorageValue,
 };
 pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
-pub use sp_consensus_grandpa::AuthorityId as GrandpaId;
 pub use sp_runtime::{Perbill, Permill};
