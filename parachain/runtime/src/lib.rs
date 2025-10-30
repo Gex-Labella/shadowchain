@@ -310,12 +310,8 @@ mod runtime {
 	#[runtime::pallet_index(33)]
 	pub type MessageQueue = pallet_message_queue;
 
-	// Template
-	#[runtime::pallet_index(50)]
-	pub type TemplatePallet = pallet_parachain_template;
-	
 	// Shadow Chain
-	#[runtime::pallet_index(51)]
+	#[runtime::pallet_index(50)]
 	pub type Shadow = pallet_shadow;
 }
 
