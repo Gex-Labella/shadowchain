@@ -1,7 +1,7 @@
 //! Genesis config presets for the Shadow Chain runtime.
 
 use crate::{
-    AccountId, Balance, BalancesConfig, RuntimeGenesisConfig, Signature, SudoConfig,
+    AccountId, Balance, RuntimeGenesisConfig, Signature, SessionKeys,
     EXISTENTIAL_DEPOSIT,
 };
 use alloc::{format, vec, vec::Vec};
@@ -27,8 +27,10 @@ where
 }
 
 /// Generate collator keys from seed.
-pub fn get_collator_keys_from_seed(seed: &str) -> sp_consensus_aura::sr25519::AuthorityPair {
-    get_from_seed::<sp_consensus_aura::sr25519::AuthorityPair>(seed)
+pub fn get_collator_keys_from_seed(seed: &str) -> sp_consensus_aura::sr25519::Pair {
+    use sp_core::Pair;
+    sp_consensus_aura::sr25519::Pair::from_string(&format!("//{}", seed), None)
+        .expect("static values are valid; qed")
 }
 
 fn configure_accounts_for_testing() -> Vec<(AccountId, Balance)> {
@@ -57,17 +59,28 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
     ];
 
     RuntimeGenesisConfig {
+        system: Default::default(),
         parachain_system: Default::default(),
-        parachain_info: shadowchain_runtime::ParachainInfoConfig {
+        timestamp: Default::default(),
+        parachain_info: staging_parachain_info::GenesisConfig {
             parachain_id: 2000.into(),
             ..Default::default()
         },
-        collator_selection: shadowchain_runtime::CollatorSelectionConfig {
+        weight_reclaim: Default::default(),
+        balances: pallet_balances::GenesisConfig {
+            balances: endowed_accounts,
+        },
+        transaction_payment: Default::default(),
+        sudo: pallet_sudo::GenesisConfig {
+            key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+        },
+        authorship: Default::default(),
+        collator_selection: pallet_collator_selection::GenesisConfig {
             invulnerables: invulnerables.clone(),
             candidacy_bond: EXISTENTIAL_DEPOSIT * 16,
             ..Default::default()
         },
-        session: shadowchain_runtime::SessionConfig {
+        session: pallet_session::GenesisConfig {
             keys: invulnerables
                 .iter()
                 .cloned()
@@ -75,18 +88,23 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
                     (
                         acc.clone(),
                         acc,
-                        shadowchain_runtime::SessionKeys {
+                        SessionKeys {
                             aura: get_from_seed::<sp_consensus_aura::sr25519::AuthorityId>(&format!("{:?}", acc)),
                         },
                     )
                 })
                 .collect(),
         },
+        aura: Default::default(),
         aura_ext: Default::default(),
-        polkadot_xcm: shadowchain_runtime::PolkadotXcmConfig {
+        xcmp_queue: Default::default(),
+        polkadot_xcm: pallet_xcm::GenesisConfig {
             safe_xcm_version: Some(3),
             ..Default::default()
         },
+        cumulus_xcm: Default::default(),
+        message_queue: Default::default(),
+        shadow: Default::default(),
     }
 }
 
