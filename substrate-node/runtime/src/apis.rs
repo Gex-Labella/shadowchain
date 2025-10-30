@@ -3,7 +3,7 @@
 use crate::{
     AccountId, Balance, Block, Executive, Header, Nonce, Runtime,
     RuntimeGenesisConfig, SessionKeys, System, TransactionPayment, VERSION,
-    InherentDataExt,
+    InherentDataExt, ParachainInfo, ParachainSystem, ConsensusHook,
 };
 use frame_support::{
     genesis_builder_helper::{build_state, get_preset},
@@ -22,6 +22,7 @@ use sp_runtime::{
 };
 use sp_std::vec::Vec;
 use sp_version::RuntimeVersion;
+use cumulus_primitives_core::ParaId;
 
 impl_runtime_apis! {
     impl sp_api::Core<Block> for Runtime {
@@ -239,6 +240,27 @@ impl_runtime_apis! {
             // NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
             // have a backtrace here.
             Executive::try_execute_block(block, state_root_check, signature_check, select).expect("execute-block failed")
+        }
+    }
+
+    impl cumulus_primitives_core::GetParachainInfo<Block> for Runtime {
+        fn parachain_id() -> ParaId {
+            ParachainInfo::parachain_id()
+        }
+    }
+
+    impl cumulus_primitives_core::CollectCollationInfo<Block> for Runtime {
+        fn collect_collation_info(header: &<Block as BlockT>::Header) -> cumulus_primitives_core::CollationInfo {
+            ParachainSystem::collect_collation_info(header)
+        }
+    }
+
+    impl cumulus_primitives_aura::AuraUnincludedSegmentApi<Block> for Runtime {
+        fn can_build_upon(
+            included_hash: <Block as BlockT>::Hash,
+            slot: cumulus_primitives_aura::Slot,
+        ) -> bool {
+            ConsensusHook::can_build_upon(included_hash, slot)
         }
     }
 }

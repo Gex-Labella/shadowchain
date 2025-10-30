@@ -1,5 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+// `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
+#![recursion_limit = "256"]
 
+// Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
@@ -7,9 +10,12 @@ pub mod apis;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarks;
 pub mod configs;
+pub mod genesis_config_presets;
 
 extern crate alloc;
 use alloc::vec::Vec;
+use smallvec::smallvec;
+
 use sp_runtime::{
     generic, impl_opaque_keys,
     traits::{BlakeTwo256, IdentifyAccount, Verify},
@@ -19,13 +25,16 @@ use sp_runtime::{
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
+use frame_support::weights::{
+    constants::WEIGHT_REF_TIME_PER_SECOND, Weight, WeightToFeeCoefficient, WeightToFeeCoefficients,
+    WeightToFeePolynomial,
+};
+
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-
-pub mod genesis_config_presets;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -53,7 +62,33 @@ pub mod opaque {
 impl_opaque_keys! {
     pub struct SessionKeys {
         pub aura: Aura,
-        pub grandpa: Grandpa,
+    }
+}
+
+/// Handles converting a weight scalar to a fee value, based on the scale and granularity of the
+/// node's balance type.
+///
+/// This should typically create a mapping between the following ranges:
+///   - `[0, MAXIMUM_BLOCK_WEIGHT]`
+///   - `[Balance::min, Balance::max]`
+///
+/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
+///   - Setting it to `0` will essentially disable the weight fee.
+///   - Setting it to `1` will cause the literal `#[weight = x]` values to be charged.
+pub struct WeightToFee;
+impl WeightToFeePolynomial for WeightToFee {
+    type Balance = Balance;
+    fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
+        // in Rococo, extrinsic base weight (smallest non-zero weight) is mapped to 1 MILLI_UNIT:
+        // in our template, we map to 1/10 of that, or 1/10 MILLI_UNIT
+        let p = MILLI_UNIT / 10;
+        let q = 100 * Balance::from(configs::ExtrinsicBaseWeight::get().ref_time());
+        smallvec![WeightToFeeCoefficient {
+            degree: 1,
+            negative: false,
+            coeff_frac: Perbill::from_rational(p % q, q),
+            coeff_integer: p / q,
+        }]
     }
 }
 
@@ -64,13 +99,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: alloc::borrow::Cow::Borrowed("shadowchain"),
     impl_name: alloc::borrow::Cow::Borrowed("shadowchain"),
     authoring_version: 1,
-    // The version of the runtime specification. A full node will not attempt to use its native
-    //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
-    //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    // This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
-    //   the compatible custom types.
-    spec_version: 100,
-    impl_version: 1,
+    spec_version: 1,
+    impl_version: 0,
     apis: apis::RUNTIME_API_VERSIONS,
     transaction_version: 1,
     system_version: 1,
@@ -96,15 +126,47 @@ pub const MINUTES: BlockNumber = 60_000 / (MILLI_SECS_PER_BLOCK as BlockNumber);
 pub const HOURS: BlockNumber = MINUTES * 60;
 pub const DAYS: BlockNumber = HOURS * 24;
 
-pub const BLOCK_HASH_COUNT: BlockNumber = 2400;
-
 // Unit = the base number of indivisible units for balances
 pub const UNIT: Balance = 1_000_000_000_000;
 pub const MILLI_UNIT: Balance = 1_000_000_000;
 pub const MICRO_UNIT: Balance = 1_000_000;
 
-/// Existential deposit.
+/// The existential deposit. Set to 1/10 of the Connected Relay Chain.
 pub const EXISTENTIAL_DEPOSIT: Balance = MILLI_UNIT;
+
+/// We assume that ~5% of the block weight is consumed by `on_initialize` handlers. This is
+/// used to limit the maximal weight of a single extrinsic.
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(5);
+
+/// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used by
+/// `Operational` extrinsics.
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
+/// We allow for 2 seconds of compute with a 6 second average block time.
+const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
+    WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2),
+    cumulus_primitives_core::relay_chain::MAX_POV_SIZE as u64,
+);
+
+mod async_backing_params {
+    /// Maximum number of blocks simultaneously accepted by the Runtime, not yet included
+    /// into the relay chain.
+    pub(crate) const UNINCLUDED_SEGMENT_CAPACITY: u32 = 3;
+    /// How many parachain blocks are processed by the relay chain per parent. Limits the
+    /// number of blocks authored per slot.
+    pub(crate) const BLOCK_PROCESSING_VELOCITY: u32 = 1;
+    /// Relay chain slot duration, in milliseconds.
+    pub(crate) const RELAY_CHAIN_SLOT_DURATION_MILLIS: u32 = 6000;
+}
+pub(crate) use async_backing_params::*;
+
+/// Aura consensus hook
+type ConsensusHook = cumulus_pallet_aura_ext::FixedVelocityConsensusHook<
+    Runtime,
+    RELAY_CHAIN_SLOT_DURATION_MILLIS,
+    BLOCK_PROCESSING_VELOCITY,
+    UNINCLUDED_SEGMENT_CAPACITY,
+>;
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -175,28 +237,55 @@ mod runtime {
 
     #[runtime::pallet_index(0)]
     pub type System = frame_system;
-
     #[runtime::pallet_index(1)]
-    pub type Timestamp = pallet_timestamp;
-
+    pub type ParachainSystem = cumulus_pallet_parachain_system;
     #[runtime::pallet_index(2)]
-    pub type Aura = pallet_aura;
-
+    pub type Timestamp = pallet_timestamp;
     #[runtime::pallet_index(3)]
-    pub type Grandpa = pallet_grandpa;
-
+    pub type ParachainInfo = staging_parachain_info;
     #[runtime::pallet_index(4)]
-    pub type Balances = pallet_balances;
+    pub type WeightReclaim = cumulus_pallet_weight_reclaim;
 
-    #[runtime::pallet_index(5)]
+    // Monetary stuff.
+    #[runtime::pallet_index(10)]
+    pub type Balances = pallet_balances;
+    #[runtime::pallet_index(11)]
     pub type TransactionPayment = pallet_transaction_payment;
 
-    #[runtime::pallet_index(6)]
+    // Governance
+    #[runtime::pallet_index(15)]
     pub type Sudo = pallet_sudo;
 
-    // Include the custom logic from the pallet-shadow in the runtime.
-    #[runtime::pallet_index(7)]
+    // Collator support. The order of these 4 are important and shall not change.
+    #[runtime::pallet_index(20)]
+    pub type Authorship = pallet_authorship;
+    #[runtime::pallet_index(21)]
+    pub type CollatorSelection = pallet_collator_selection;
+    #[runtime::pallet_index(22)]
+    pub type Session = pallet_session;
+    #[runtime::pallet_index(23)]
+    pub type Aura = pallet_aura;
+    #[runtime::pallet_index(24)]
+    pub type AuraExt = cumulus_pallet_aura_ext;
+
+    // XCM helpers.
+    #[runtime::pallet_index(30)]
+    pub type XcmpQueue = cumulus_pallet_xcmp_queue;
+    #[runtime::pallet_index(31)]
+    pub type PolkadotXcm = pallet_xcm;
+    #[runtime::pallet_index(32)]
+    pub type CumulusXcm = cumulus_pallet_xcm;
+    #[runtime::pallet_index(33)]
+    pub type MessageQueue = pallet_message_queue;
+
+    // Shadow Chain custom pallet
+    #[runtime::pallet_index(50)]
     pub type Shadow = pallet_shadow;
+}
+
+cumulus_pallet_parachain_system::register_validate_block! {
+    Runtime = Runtime,
+    BlockExecutor = cumulus_pallet_aura_ext::BlockExecutor::<Runtime, Executive>,
 }
 
 // The runtime types are automatically exported by the #[frame_support::runtime] macro
@@ -205,20 +294,22 @@ mod runtime {
 // Re-export RuntimeApi for the node
 pub use apis::RuntimeApi;
 
-/// The `TransactionExtension` to the basic transaction logic.
-pub type TxExtension = (
-    frame_system::AuthorizeCall<Runtime>,
-    frame_system::CheckNonZeroSender<Runtime>,
-    frame_system::CheckSpecVersion<Runtime>,
-    frame_system::CheckTxVersion<Runtime>,
-    frame_system::CheckGenesis<Runtime>,
-    frame_system::CheckEra<Runtime>,
-    frame_system::CheckNonce<Runtime>,
-    frame_system::CheckWeight<Runtime>,
-    pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
-    frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
-    frame_system::WeightReclaim<Runtime>,
-);
+/// The extension to the basic transaction logic.
+pub type TxExtension = cumulus_pallet_weight_reclaim::StorageWeightReclaim<
+    Runtime,
+    (
+        frame_system::AuthorizeCall<Runtime>,
+        frame_system::CheckNonZeroSender<Runtime>,
+        frame_system::CheckSpecVersion<Runtime>,
+        frame_system::CheckTxVersion<Runtime>,
+        frame_system::CheckGenesis<Runtime>,
+        frame_system::CheckEra<Runtime>,
+        frame_system::CheckNonce<Runtime>,
+        frame_system::CheckWeight<Runtime>,
+        pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
+        frame_metadata_hash_extension::CheckMetadataHash<Runtime>,
+    ),
+>;
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

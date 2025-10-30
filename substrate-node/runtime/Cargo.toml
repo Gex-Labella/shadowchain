@@ -12,6 +12,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { workspace = true }
 scale-info = { workspace = true }
+smallvec = "1.11"
 
 # Substrate primitives
 sp-api = { workspace = true }
@@ -41,6 +42,7 @@ frame-metadata-hash-extension = { workspace = true }
 
 # Pallets
 pallet-aura = { workspace = true }
+pallet-authorship = { workspace = true }
 pallet-balances = { workspace = true }
 pallet-grandpa = { workspace = true }
 pallet-sudo = { workspace = true }
@@ -51,14 +53,17 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 # Cumulus dependencies for parachain
 cumulus-pallet-aura-ext = { workspace = true }
 cumulus-pallet-parachain-system = { workspace = true }
+cumulus-pallet-weight-reclaim = { workspace = true }
 cumulus-pallet-xcm = { workspace = true }
 cumulus-pallet-xcmp-queue = { workspace = true }
 cumulus-primitives-core = { workspace = true }
+cumulus-primitives-aura = { workspace = true }
 staging-parachain-info = { workspace = true }
 
 # XCM dependencies
 staging-xcm = { workspace = true }
 pallet-xcm = { workspace = true }
+pallet-message-queue = { workspace = true }
 
 # Additional pallets for parachain
 pallet-collator-selection = { workspace = true }
@@ -98,6 +103,7 @@ std = [
     "frame-try-runtime?/std",
     "frame-metadata-hash-extension/std",
     "pallet-aura/std",
+    "pallet-authorship/std",
     "pallet-balances/std",
     "pallet-grandpa/std",
     "pallet-sudo/std",
@@ -106,12 +112,15 @@ std = [
     "pallet-transaction-payment-rpc-runtime-api/std",
     "cumulus-pallet-aura-ext/std",
     "cumulus-pallet-parachain-system/std",
+    "cumulus-pallet-weight-reclaim/std",
     "cumulus-pallet-xcm/std",
     "cumulus-pallet-xcmp-queue/std",
     "cumulus-primitives-core/std",
+    "cumulus-primitives-aura/std",
     "staging-parachain-info/std",
     "staging-xcm/std",
     "pallet-xcm/std",
+    "pallet-message-queue/std",
     "pallet-collator-selection/std",
     "pallet-session/std",
     "pallet-shadow/std",
@@ -125,8 +134,10 @@ runtime-benchmarks = [
     "pallet-grandpa/runtime-benchmarks",
     "pallet-timestamp/runtime-benchmarks",
     "cumulus-pallet-parachain-system/runtime-benchmarks",
+    "cumulus-pallet-weight-reclaim/runtime-benchmarks",
     "cumulus-pallet-xcmp-queue/runtime-benchmarks",
     "pallet-xcm/runtime-benchmarks",
+    "pallet-message-queue/runtime-benchmarks",
     "pallet-collator-selection/runtime-benchmarks",
     "pallet-shadow/runtime-benchmarks",
     "sp-runtime/runtime-benchmarks",
@@ -137,6 +148,7 @@ try-runtime = [
     "frame-system/try-runtime",
     "frame-support/try-runtime",
     "pallet-aura/try-runtime",
+    "pallet-authorship/try-runtime",
     "pallet-balances/try-runtime",
     "pallet-grandpa/try-runtime",
     "pallet-sudo/try-runtime",
@@ -144,10 +156,12 @@ try-runtime = [
     "pallet-transaction-payment/try-runtime",
     "cumulus-pallet-aura-ext/try-runtime",
     "cumulus-pallet-parachain-system/try-runtime",
+    "cumulus-pallet-weight-reclaim/try-runtime",
     "cumulus-pallet-xcm/try-runtime",
     "cumulus-pallet-xcmp-queue/try-runtime",
     "staging-parachain-info/try-runtime",
     "pallet-xcm/try-runtime",
+    "pallet-message-queue/try-runtime",
     "pallet-collator-selection/try-runtime",
     "pallet-session/try-runtime",
     "pallet-shadow/try-runtime",
