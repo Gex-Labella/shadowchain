@@ -65,7 +65,7 @@ fn development_genesis_config() -> RuntimeGenesisConfig {
         },
         balances: pallet_balances::GenesisConfig {
             balances: endowed_accounts,
-            dev_accounts: vec![],
+            dev_accounts: None,
         },
         transaction_payment: Default::default(),
         sudo: pallet_sudo::GenesisConfig {
