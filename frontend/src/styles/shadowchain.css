@@ -9,31 +9,26 @@
   --shadow-carbon: #1e2124;
   --shadow-steel: #2a2e35;
   
-  /* Accent Colors - Cyberpunk neons with deliberate imperfection */
   --neon-violet: #9d4edd;
   --neon-cyan: #00f5ff;
   --neon-magenta: #ff006e;
   --neon-lime: #adff02;
   --corrupt-green: #39ff14;
   
-  /* Subtle Tones */
   --ghost-white: #f7f7ff;
   --static-gray: #8b8c89;
   --signal-blue: #4361ee;
   --warning-amber: #ffaa00;
   --error-crimson: #d00000;
   
-  /* Glitch Effects */
   --glitch-red: #ff0040;
   --glitch-blue: #00ffff;
   --glitch-green: #00ff00;
   
-  /* Typography */
   --font-display: 'Orbitron', monospace;
   --font-mono: 'JetBrains Mono', monospace;
   --font-tech: 'Rajdhani', sans-serif;
   
-  /* Spacing - Intentionally irregular rhythm */
   --space-xs: 0.382rem;
   --space-sm: 0.618rem;
   --space-md: 1rem;
@@ -41,7 +36,6 @@
   --space-xl: 2.618rem;
   --space-2xl: 4.236rem;
   
-  /* Border Radius - Asymmetric for character */
   --radius-sharp: 2px;
   --radius-subtle: 4px;
   --radius-broken: 7px 2px 11px 3px;
@@ -85,7 +79,6 @@ body::before {
   100% { transform: translateY(10px); }
 }
 
-/* Main Layout Container */
 .shadow-container {
   min-height: 100vh;
   background: 
@@ -95,7 +88,6 @@ body::before {
     var(--shadow-void);
 }
 
-/* Typography Classes */
 .title-glitch {
   font-family: var(--font-display);
   font-weight: 900;

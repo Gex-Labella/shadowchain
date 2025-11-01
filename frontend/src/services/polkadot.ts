@@ -5,7 +5,7 @@ import { useWalletStore } from '../store/wallet';
 let api: ApiPromise | null = null;
 
 // Set to true to run without substrate node
-const MOCK_MODE = true;
+const MOCK_MODE = false;
 
 export async function setupPolkadotApi(): Promise<ApiPromise> {
   if (api) return api;

@@ -22,7 +22,6 @@ function App() {
 
   return (
     <div className="shadow-container">
-      {/* Cyberpunk scanline effect is added via CSS */}
       <Routes>
         <Route 
           path="/" 
