@@ -1,96 +1,64 @@
 services:
-  # Shadow Chain Parachain with custom pallet-shadow
-  parachain:
-    build:
-      context: ./parachain
-      dockerfile: Dockerfile
-    container_name: shadowchain-parachain
-    ports:
-      - "9944:9944"     # WebSocket RPC
-      - "9933:9933"     # HTTP RPC
-      - "30333:30333"   # P2P
-      - "9615:9615"     # Prometheus
-    volumes:
-      - parachain-data:/data
-    command: >
-      --dev
-      --ws-external
-      --rpc-external
-      --rpc-cors=all
-      --base-path=/data
-      --rpc-methods=unsafe
-      --name=ShadowChain-Dev
-    networks:
-      - shadowchain
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/shadow-chain-node", "--version"]
-      interval: 30s
-      timeout: 3s
-      start_period: 30s
-      retries: 3
-
-  # IPFS Node
+  # IPFS node
   ipfs:
     image: ipfs/go-ipfs:latest
     container_name: shadowchain-ipfs
     ports:
-      - "4001:4001"     # Swarm
-      - "5001:5001"     # API
-      - "8080:8080"     # Gateway
+      - "5001:5001"
+      - "8080:8080"
     volumes:
       - ipfs-data:/data/ipfs
-    environment:
-      - IPFS_PROFILE=server
-      - IPFS_PATH=/data/ipfs
     networks:
-      - shadowchain
+      - shadowchain-network
 
-  # Backend Service
+  # Backend service
   backend:
-    build:
+    build: 
       context: .
       dockerfile: backend/Dockerfile
     container_name: shadowchain-backend
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=development
-      - SUBSTRATE_WS=ws://parachain:9944
+      - NODE_ENV=production
+      - PORT=3001
       - IPFS_API_URL=http://ipfs:5001
-      - IPFS_GATEWAY_URL=http://ipfs:8080
-      - PINNING_SERVICE=local
-    env_file:
-      - .env
+      - SUBSTRATE_WS=ws://parachain:9944
+      - DATABASE_URL=postgresql://shadowchain:shadowchain@postgres:5432/shadowchain
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN}
+      - JWT_SECRET=${JWT_SECRET:-defaultsecret}
+      - BACKEND_SIGNER_PRIVATE_KEY=${BACKEND_SIGNER_PRIVATE_KEY}
     depends_on:
-      - parachain
       - ipfs
+      - postgres
+      - parachain
     networks:
-      - shadowchain
+      - shadowchain-network
     restart: unless-stopped
 
-  # Frontend
+  # Frontend service
   frontend:
-    build:
+    build: 
       context: .
       dockerfile: frontend/Dockerfile
     container_name: shadowchain-frontend
     ports:
       - "3000:8080"
     environment:
-      - VITE_API_URL=http://localhost:3001
-      - VITE_WS_URL=ws://localhost:9944
-      - VITE_IPFS_GATEWAY=http://localhost:8080
+      - VITE_API_URL=http://backend:3001
+      - VITE_WS_URL=ws://parachain:9944
     depends_on:
       - backend
     networks:
-      - shadowchain
+      - shadowchain-network
+    restart: unless-stopped
 
-  # PostgreSQL (optional, for indexing)
+  # PostgreSQL database
   postgres:
     image: postgres:15-alpine
     container_name: shadowchain-postgres
-    ports:
-      - "5432:5432"
     environment:
       - POSTGRES_USER=shadowchain
       - POSTGRES_PASSWORD=shadowchain
@@ -98,29 +66,45 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      - shadowchain
-    profiles:
-      - with-db
+      - shadowchain-network
+    restart: unless-stopped
 
-  # Redis (optional, for caching)
-  redis:
-    image: redis:7-alpine
-    container_name: shadowchain-redis
+  # Shadow Chain Parachain
+  parachain:
+    build:
+      context: ./parachain
+      dockerfile: Dockerfile
+    container_name: shadowchain-parachain
+    command: >
+      --dev
+      --ws-external
+      --rpc-external
+      --rpc-cors=all
+      --base-path=/data
+      --rpc-methods=unsafe
+      --name=ShadowChain-Remote
     ports:
-      - "6379:6379"
+      - "9944:9944"
+      - "9933:9933"
+      - "9615:9615"
+      - "30333:30333"
     volumes:
-      - redis-data:/data
+      - parachain-data:/data
     networks:
-      - shadowchain
-    profiles:
-      - with-cache
+      - shadowchain-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/shadow-chain-node", "--version"]
+      interval: 30s
+      timeout: 3s
+      start_period: 60s
+      retries: 5
 
 volumes:
-  parachain-data:
   ipfs-data:
   postgres-data:
-  redis-data:
+  parachain-data:
 
 networks:
-  shadowchain:
+  shadowchain-network:
     driver: bridge
