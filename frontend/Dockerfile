@@ -25,31 +25,23 @@ RUN npm run build
 # Runtime stage
 FROM nginx:alpine
 
-# Install runtime dependencies
-RUN apk add --no-cache tini
-
 # Copy built files
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Create non-root user
-RUN addgroup -g 1001 -S shadowchain && \
-    adduser -S shadowchain -u 1001
-
-# Setup nginx permissions
-RUN touch /var/run/nginx.pid && \
-    chown -R shadowchain:shadowchain /var/run/nginx.pid /var/cache/nginx /var/log/nginx /usr/share/nginx/html
-
-# Create nginx config
+# Create nginx config that can handle backend being unavailable
 RUN echo 'server { \
-    listen 8080; \
+    listen 80; \
     server_name localhost; \
     root /usr/share/nginx/html; \
     index index.html; \
+    \
     location / { \
         try_files $uri $uri/ /index.html; \
     } \
+    \
     location /api { \
-        proxy_pass http://backend:3001; \
+        set $backend backend:3001; \
+        proxy_pass http://$backend; \
         proxy_http_version 1.1; \
         proxy_set_header Upgrade $http_upgrade; \
         proxy_set_header Connection "upgrade"; \
@@ -57,7 +49,11 @@ RUN echo 'server { \
         proxy_set_header X-Real-IP $remote_addr; \
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
         proxy_set_header X-Forwarded-Proto $scheme; \
+        proxy_connect_timeout 2s; \
+        proxy_send_timeout 10s; \
+        proxy_read_timeout 10s; \
     } \
+    \
     location /health { \
         access_log off; \
         return 200 "healthy\n"; \
@@ -65,11 +61,9 @@ RUN echo 'server { \
     } \
 }' > /etc/nginx/conf.d/default.conf
 
-USER shadowchain
+# Use default nginx user instead of creating custom one
+RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx
 
-EXPOSE 8080
-
-# Use tini for proper signal handling
-ENTRYPOINT ["/sbin/tini", "--"]
+EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

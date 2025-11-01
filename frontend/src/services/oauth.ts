@@ -4,7 +4,7 @@
 
 import axios from 'axios';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.REACT_APP_API_URL || 'http://54.197.131.122:3001';
 
 export interface Connection {
   service: string;
