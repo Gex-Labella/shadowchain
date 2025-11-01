@@ -9,17 +9,17 @@ RUN apk add --no-cache python3 make g++
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY backend/package*.json ./
+COPY backend/tsconfig.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy shared-crypto module
-COPY --from=shared-crypto /app/shared-crypto ../shared-crypto
+COPY shared-crypto /shared-crypto
 
 # Copy source code
-COPY src ./src
+COPY backend/src ./src
 
 # Build the application
 RUN npm run build
@@ -33,7 +33,7 @@ RUN apk add --no-cache tini
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY backend/package*.json ./
 
 # Install production dependencies only
 RUN npm ci --production
@@ -42,14 +42,14 @@ RUN npm ci --production
 COPY --from=builder /app/dist ./dist
 
 # Copy shared-crypto module
-COPY --from=builder /app/../shared-crypto ../shared-crypto
+COPY --from=builder /shared-crypto /shared-crypto
 
 # Create non-root user
 RUN addgroup -g 1001 -S shadowchain && \
     adduser -S shadowchain -u 1001
 
 # Change ownership
-RUN chown -R shadowchain:shadowchain /app
+RUN chown -R shadowchain:shadowchain /app /shared-crypto
 
 # Switch to non-root user
 USER shadowchain
