@@ -14,8 +14,12 @@ RUN npm ci
 # Copy shared-crypto module
 COPY shared-crypto /shared-crypto
 
-COPY frontend/ ./
+# Copy only the source files (not the entire directory)
+COPY frontend/public ./public
+COPY frontend/src ./src
+COPY frontend/tsconfig.json ./
 
+# Build the app
 RUN npm run build
 
 # Runtime stage
@@ -24,14 +28,18 @@ FROM nginx:alpine
 # Install runtime dependencies
 RUN apk add --no-cache tini
 
+# Copy built files
 COPY --from=builder /app/build /usr/share/nginx/html
 
+# Create non-root user
 RUN addgroup -g 1001 -S shadowchain && \
     adduser -S shadowchain -u 1001
 
+# Setup nginx permissions
 RUN touch /var/run/nginx.pid && \
     chown -R shadowchain:shadowchain /var/run/nginx.pid /var/cache/nginx /var/log/nginx /usr/share/nginx/html
 
+# Create nginx config
 RUN echo 'server { \
     listen 8080; \
     server_name localhost; \
