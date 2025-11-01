@@ -25,7 +25,7 @@ COPY backend/src ./src
 RUN npm run build
 
 # Runtime stage
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Install runtime dependencies
 RUN apk add --no-cache tini
@@ -36,7 +36,7 @@ WORKDIR /app
 COPY backend/package*.json ./
 
 # Install production dependencies only
-RUN npm ci --production
+RUN npm ci --omit=dev
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
