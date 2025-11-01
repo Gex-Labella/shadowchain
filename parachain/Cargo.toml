@@ -35,6 +35,7 @@ smallvec = { version = "1.11.0", default-features = false }
 substrate-wasm-builder = { version = "26.0.1", default-features = false }
 frame = { version = "0.9.1", default-features = false, package = "polkadot-sdk-frame" }
 sp-runtime = { version = "38.0.1", default-features = false }
+sp-std = { version = "15.0.0", default-features = false }
 
 [profile.release]
 opt-level = 3

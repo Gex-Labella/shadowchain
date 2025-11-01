@@ -24,8 +24,6 @@
 // --output
 // pallets/shadow/src/weights.rs
 
-#![cfg_attr(not(feature = "std"), no_std)]
-
 use polkadot_sdk::frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
 use core::marker::PhantomData;
 

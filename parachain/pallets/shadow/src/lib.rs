@@ -18,10 +18,14 @@ mod benchmarking;
 pub mod weights;
 pub use weights::WeightInfo;
 
+// Import Vec from alloc for no_std compatibility
+extern crate alloc;
+use alloc::vec::Vec;
+
 #[frame::pallet]
 pub mod pallet {
 	use frame::prelude::*;
-	use super::WeightInfo;
+	use super::{WeightInfo, Vec};
 	
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -173,10 +177,10 @@ pub mod pallet {
 			// Check consent
 			Self::ensure_valid_consent(&who)?;
 
-			// Validate inputs
-			ensure!(cid.len() <= T::MaxCidLength::get() as usize, Error::<T>::CidTooLong);
-			ensure!(encrypted_key.len() <= T::MaxKeyLength::get() as usize, Error::<T>::KeyTooLong);
-			ensure!(metadata.len() <= T::MaxMetadataLength::get() as usize, Error::<T>::MetadataTooLong);
+			// Validate inputs - convert lengths to u32 for comparison
+			ensure!(cid.len() as u32 <= T::MaxCidLength::get(), Error::<T>::CidTooLong);
+			ensure!(encrypted_key.len() as u32 <= T::MaxKeyLength::get(), Error::<T>::KeyTooLong);
+			ensure!(metadata.len() as u32 <= T::MaxMetadataLength::get(), Error::<T>::MetadataTooLong);
 			ensure!(source <= 1, Error::<T>::InvalidSource);
 
 			// Generate unique ID for this item
