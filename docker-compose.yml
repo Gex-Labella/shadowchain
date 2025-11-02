@@ -48,6 +48,15 @@ services:
     ports:
       - "3000:80"
     environment:
+      - REACT_APP_API_URL=https://shadowchain.locsafe.org
+      - REACT_APP_WS_URL=wss://shadowchain.locsafe.org/ws
+      - REACT_APP_GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - REACT_APP_API_URL=https://shadowchain.locsafe.org
+      - REACT_APP_WS_URL=wss://shadowchain.locsafe.org/ws
+      - REACT_APP_GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - REACT_APP_API_URL=https://shadowchain.locsafe.org
+      - REACT_APP_WS_URL=wss://shadowchain.locsafe.org/ws
+      - REACT_APP_GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - VITE_API_URL=http://backend:3001
       - VITE_WS_URL=ws://parachain:9944
     depends_on:
