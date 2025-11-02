@@ -28,6 +28,12 @@ export class FetcherService {
   private cronJob?: cron.ScheduledTask;
   private isRunning: boolean = false;
   private lastSyncTime: Map<string, Date> = new Map();
+  private servicesAvailable = {
+    github: false,
+    twitter: false,
+    substrate: false,
+    ipfs: false
+  };
 
   /**
    * Start the fetcher service
@@ -35,21 +41,29 @@ export class FetcherService {
   async start(): Promise<void> {
     logger.info('Starting fetcher service');
 
-    // Initialize services
+    // Initialize services (but don't fail if some are unavailable)
     await this.initializeServices();
 
-    // Start cron job
-    const schedule = `*/${config.fetchIntervalMinutes} * * * *`;
-    this.cronJob = cron.schedule(schedule, () => {
-      this.runSync().catch(error => {
-        logger.error({ error }, 'Sync failed');
+    // Only start cron job if at least some services are available
+    if (Object.values(this.servicesAvailable).some(v => v)) {
+      // Start cron job
+      const schedule = `*/${config.fetchIntervalMinutes} * * * *`;
+      this.cronJob = cron.schedule(schedule, () => {
+        this.runSync().catch(error => {
+          logger.error({ error }, 'Sync failed');
+        });
       });
-    });
 
-    logger.info({ schedule }, 'Fetcher service started');
+      logger.info({ schedule, availableServices: this.servicesAvailable }, 'Fetcher service started');
 
-    // Run initial sync
-    await this.runSync();
+      // Run initial sync if all required services are available
+      if (this.servicesAvailable.substrate && this.servicesAvailable.ipfs && 
+          (this.servicesAvailable.github || this.servicesAvailable.twitter)) {
+        await this.runSync();
+      }
+    } else {
+      logger.warn('No external services available, fetcher service running in limited mode');
+    }
   }
 
   /**
@@ -63,7 +77,10 @@ export class FetcherService {
       this.cronJob = undefined;
     }
 
-    await substrateService.disconnect();
+    if (this.servicesAvailable.substrate) {
+      await substrateService.disconnect();
+    }
+    
     logger.info('Fetcher service stopped');
   }
 
@@ -71,30 +88,56 @@ export class FetcherService {
    * Initialize required services
    */
   private async initializeServices(): Promise<void> {
-    // Connect to Substrate
-    await substrateService.connect();
-
-    // Validate API tokens
-    const [githubValid, twitterValid] = await Promise.all([
-      githubService.validateToken(),
-      twitterService.validateToken(),
-    ]);
-
-    if (!githubValid) {
-      throw new Error('Invalid GitHub token');
+    // Try to connect to Substrate
+    try {
+      await substrateService.connect();
+      this.servicesAvailable.substrate = true;
+      logger.info('Substrate connection successful');
+    } catch (error) {
+      logger.warn({ error }, 'Substrate connection failed - will run without blockchain');
+      this.servicesAvailable.substrate = false;
     }
 
-    if (!twitterValid) {
-      throw new Error('Invalid Twitter bearer token');
+    // Validate API tokens
+    if (config.githubToken) {
+      try {
+        const githubValid = await githubService.validateToken();
+        this.servicesAvailable.github = githubValid;
+        logger.info({ valid: githubValid }, 'GitHub token validation');
+      } catch (error) {
+        logger.warn({ error }, 'GitHub token validation failed');
+        this.servicesAvailable.github = false;
+      }
+    } else {
+      logger.info('GitHub token not configured - GitHub fetching disabled');
+      this.servicesAvailable.github = false;
+    }
+
+    if (config.twitterBearerToken) {
+      try {
+        const twitterValid = await twitterService.validateToken();
+        this.servicesAvailable.twitter = twitterValid;
+        logger.info({ valid: twitterValid }, 'Twitter token validation');
+      } catch (error) {
+        logger.warn({ error }, 'Twitter token validation failed');
+        this.servicesAvailable.twitter = false;
+      }
+    } else {
+      logger.info('Twitter token not configured - Twitter fetching disabled');
+      this.servicesAvailable.twitter = false;
     }
 
     // Check IPFS connection
-    const ipfsHealthy = await ipfsService.healthCheck();
-    if (!ipfsHealthy) {
-      throw new Error('IPFS connection failed');
+    try {
+      const ipfsHealthy = await ipfsService.healthCheck();
+      this.servicesAvailable.ipfs = ipfsHealthy;
+      logger.info({ healthy: ipfsHealthy }, 'IPFS health check');
+    } catch (error) {
+      logger.warn({ error }, 'IPFS health check failed');
+      this.servicesAvailable.ipfs = false;
     }
 
-    logger.info('All services initialized successfully');
+    logger.info({ availableServices: this.servicesAvailable }, 'Service initialization complete');
   }
 
   /**
@@ -103,6 +146,17 @@ export class FetcherService {
   async runSync(): Promise<ProcessedItem[]> {
     if (this.isRunning) {
       logger.warn('Sync already in progress, skipping');
+      return [];
+    }
+
+    // Check if we have minimum required services
+    if (!this.servicesAvailable.substrate || !this.servicesAvailable.ipfs) {
+      logger.warn('Cannot run sync - Substrate or IPFS not available');
+      return [];
+    }
+
+    if (!this.servicesAvailable.github && !this.servicesAvailable.twitter) {
+      logger.warn('Cannot run sync - No content sources available');
       return [];
     }
 
@@ -160,24 +214,28 @@ export class FetcherService {
     let githubContent: GitHubContent[] = [];
     let twitterContent: TwitterContent[] = [];
     
-    if (hasGitHubToken) {
-      // Use user's OAuth token
-      const userToken = await oauthService.getToken(userAddress, 'github');
-      if (userToken) {
-        githubContent = await githubService.fetchRecentCommitsWithToken(
-          userToken.accessToken,
-          lastSync
-        );
-      }
-    } else {
-      // Fallback to centralized approach if configured
-      if (config.githubToken) {
-        githubContent = await githubService.fetchRecentCommits(lastSync);
+    if (this.servicesAvailable.github) {
+      if (hasGitHubToken) {
+        // Use user's OAuth token
+        const userToken = await oauthService.getToken(userAddress, 'github');
+        if (userToken) {
+          githubContent = await githubService.fetchRecentCommitsWithToken(
+            userToken.accessToken,
+            lastSync
+          );
+        }
+      } else {
+        // Fallback to centralized approach if configured
+        if (config.githubToken) {
+          githubContent = await githubService.fetchRecentCommits(lastSync);
+        }
       }
     }
     
-    // Twitter still uses centralized approach for now
-    twitterContent = await twitterService.fetchRecentTweets(lastSync);
+    if (this.servicesAvailable.twitter) {
+      // Twitter still uses centralized approach for now
+      twitterContent = await twitterService.fetchRecentTweets(lastSync);
+    }
 
     const allContent: ContentItem[] = [...githubContent, ...twitterContent];
     const processedItems: ProcessedItem[] = [];
@@ -219,16 +277,19 @@ export class FetcherService {
     const ipfsResult = await ipfsService.upload(serializedContent);
 
     // Submit to blockchain
-    const txHash = await substrateService.submitShadowItem(
-      userAddress,
-      ipfsResult.cid,
-      encryptedKey.ciphertext,
-      content.source === 'github' ? 'GitHub' : 'Twitter',
-      JSON.stringify({ 
-        timestamp: content.timestamp,
-        url: content.url 
-      })
-    );
+    let txHash: string | undefined;
+    if (this.servicesAvailable.substrate) {
+      txHash = await substrateService.submitShadowItem(
+        userAddress,
+        ipfsResult.cid,
+        encryptedKey.ciphertext,
+        content.source === 'github' ? 'GitHub' : 'Twitter',
+        JSON.stringify({ 
+          timestamp: content.timestamp,
+          url: content.url 
+        })
+      );
+    }
 
     const processed: ProcessedItem = {
       source: content.source,
@@ -258,6 +319,11 @@ export class FetcherService {
     // This is a placeholder - in production, you'd query the chain
     // for all accounts with valid consent records
     const configuredUsers = process.env.SHADOW_USERS?.split(',') || [];
+    
+    if (!this.servicesAvailable.substrate) {
+      // If substrate isn't available, return empty array
+      return [];
+    }
     
     const validUsers: string[] = [];
     
@@ -289,6 +355,10 @@ export class FetcherService {
    * Manual sync for a specific user
    */
   async syncUser(userAddress: string): Promise<ProcessedItem[]> {
+    if (!this.servicesAvailable.substrate) {
+      throw new Error('Substrate service not available');
+    }
+
     // Check consent
     const hasConsent = await substrateService.hasValidConsent(userAddress);
     if (!hasConsent) {
@@ -305,10 +375,17 @@ export class FetcherService {
     isRunning: boolean;
     lastSyncTimes: Record<string, Date>;
     nextRunTime?: Date;
+    servicesAvailable: {
+      github: boolean;
+      twitter: boolean;
+      substrate: boolean;
+      ipfs: boolean;
+    };
   } {
     const status: any = {
       isRunning: this.isRunning,
       lastSyncTimes: Object.fromEntries(this.lastSyncTime),
+      servicesAvailable: this.servicesAvailable,
     };
 
     if (this.cronJob) {

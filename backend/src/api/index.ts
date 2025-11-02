@@ -82,9 +82,27 @@ export function createApi(): express.Application {
  * Start the API server
  */
 export async function startApiServer(): Promise<void> {
-  const app = createApi();
+  return new Promise((resolve, reject) => {
+    try {
+      const app = createApi();
+      
+      const server = app.listen(config.port, () => {
+        logger.info({ port: config.port }, 'API server started');
+        resolve();
+      });
 
-  app.listen(config.port, () => {
-    logger.info({ port: config.port }, 'API server started');
+      server.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EADDRINUSE') {
+          logger.error({ port: config.port }, 'Port is already in use');
+          reject(new Error(`Port ${config.port} is already in use`));
+        } else {
+          logger.error({ error }, 'Failed to start API server');
+          reject(error);
+        }
+      });
+    } catch (error) {
+      logger.error({ error }, 'Failed to create API server');
+      reject(error);
+    }
   });
 }

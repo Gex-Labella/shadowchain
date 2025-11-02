@@ -33,7 +33,7 @@ services:
     depends_on:
       - ipfs
       - postgres
-      - parachain
+      #- parachain
     networks:
       - shadowchain-network
     restart: unless-stopped
@@ -45,7 +45,7 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: shadowchain-frontend
     ports:
-      - "3000:8080"
+      - "3000:80"
     environment:
       - VITE_API_URL=http://backend:3001
       - VITE_WS_URL=ws://parachain:9944

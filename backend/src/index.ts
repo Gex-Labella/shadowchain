@@ -31,7 +31,18 @@ async function main(): Promise<void> {
 
     logger.info('Shadow Chain Backend Service started successfully');
   } catch (error) {
-    logger.fatal({ error }, 'Failed to start backend service');
+    // Better error logging
+    if (error instanceof Error) {
+      logger.fatal({ 
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        }
+      }, 'Failed to start backend service');
+    } else {
+      logger.fatal({ error: String(error) }, 'Failed to start backend service');
+    }
     process.exit(1);
   }
 }
@@ -59,18 +70,37 @@ async function shutdown(): Promise<void> {
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  logger.fatal({ error }, 'Uncaught exception');
+  logger.fatal({ 
+    error: {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    }
+  }, 'Uncaught exception');
   process.exit(1);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  logger.fatal({ reason, promise }, 'Unhandled promise rejection');
+  logger.fatal({ 
+    reason: reason instanceof Error ? {
+      message: reason.message,
+      stack: reason.stack,
+      name: reason.name
+    } : String(reason),
+    promise 
+  }, 'Unhandled promise rejection');
   process.exit(1);
 });
 
 // Start the application
 main().catch((error) => {
-  logger.fatal({ error }, 'Fatal error in main');
+  logger.fatal({ 
+    error: error instanceof Error ? {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    } : String(error)
+  }, 'Fatal error in main');
   process.exit(1);
 });
