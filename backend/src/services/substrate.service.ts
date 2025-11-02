@@ -1,5 +1,6 @@
 /**
  * Substrate Service for blockchain interactions
+ * 
  */
 
 import { ApiPromise, WsProvider, Keyring } from '@polkadot/api';
@@ -29,23 +30,40 @@ export class SubstrateService {
   private api?: ApiPromise;
   private keyring: Keyring;
   private signerAccount?: KeyringPair;
+  private isConnected: boolean = false;
+  private connectionAttempted: boolean = false;
+  private reconnectTimeout?: NodeJS.Timeout;
 
   constructor() {
     this.keyring = new Keyring({ type: 'sr25519' });
   }
 
   /**
-   * Initialize connection to Substrate node
+   * Initialize connection to Substrate node (non-blocking)
+   * Will work gracefully if parachain is not available
    */
   async connect(): Promise<void> {
+    // Clear any existing reconnect timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
     try {
+      logger.info({ url: config.substrateWsUrl }, 'Attempting to connect to Substrate parachain...');
+      
       const provider = new WsProvider(config.substrateWsUrl);
       
-      this.api = await ApiPromise.create({
+      // Set a connection timeout
+      const connectionPromise = ApiPromise.create({
         provider,
         types: config.chainTypes,
       });
 
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Connection timeout')), 10000); // 10 second timeout
+      });
+
+      this.api = await Promise.race([connectionPromise, timeoutPromise]);
       await this.api.isReady;
 
       const chain = await this.api.rpc.system.chain();
@@ -56,31 +74,82 @@ export class SubstrateService {
         chain: chain.toString(),
         nodeName: nodeName.toString(),
         nodeVersion: nodeVersion.toString(),
-      }, 'Connected to Substrate node');
+      }, 'Successfully connected to Substrate parachain');
+
+      this.isConnected = true;
+      this.connectionAttempted = true;
 
       // Initialize signer if backend signer key is provided
       if (process.env.BACKEND_SIGNER_PRIVATE_KEY) {
         this.signerAccount = this.keyring.addFromUri(process.env.BACKEND_SIGNER_PRIVATE_KEY);
         logger.info({ address: this.signerAccount.address }, 'Backend signer initialized');
       }
+
+      // Set up reconnection handler
+      provider.on('disconnected', () => {
+        logger.warn('Substrate connection lost, will attempt reconnection');
+        this.isConnected = false;
+        this.scheduleReconnect();
+      });
+
     } catch (error) {
-      logger.error({ error }, 'Failed to connect to Substrate node');
-      throw error;
+      this.connectionAttempted = true;
+      this.isConnected = false;
+      
+      logger.warn({ 
+        error: error instanceof Error ? error.message : String(error),
+        url: config.substrateWsUrl 
+      }, 'Substrate parachain not available - running in offline mode');
+      
+      // Schedule reconnection attempt
+      this.scheduleReconnect();
     }
+  }
+
+  /**
+   * Schedule a reconnection attempt
+   */
+  private scheduleReconnect(): void {
+    // Don't schedule if already scheduled
+    if (this.reconnectTimeout) {
+      return;
+    }
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = undefined;
+      logger.info('Attempting to reconnect to Substrate parachain...');
+      this.connect().catch(error => {
+        logger.debug({ error }, 'Reconnection attempt failed');
+      });
+    }, 30000); // Retry every 30 seconds
   }
 
   /**
    * Disconnect from Substrate node
    */
   async disconnect(): Promise<void> {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = undefined;
+    }
+
     if (this.api) {
       await this.api.disconnect();
-      logger.info('Disconnected from Substrate node');
+      this.isConnected = false;
+      logger.info('Disconnected from Substrate parachain');
     }
   }
 
   /**
+   * Check if connected to the parachain
+   */
+  isChainConnected(): boolean {
+    return this.isConnected && this.api?.isConnected === true;
+  }
+
+  /**
    * Submit a shadow item to the chain
+   * Returns null if chain is not available (graceful degradation)
    */
   async submitShadowItem(
     userAddress: string,
@@ -88,9 +157,14 @@ export class SubstrateService {
     encryptedKey: Uint8Array,
     source: 'GitHub' | 'Twitter',
     metadata: string = ''
-  ): Promise<string> {
+  ): Promise<string | null> {
+    if (!this.isChainConnected()) {
+      logger.warn('Cannot submit shadow item - parachain not connected. Item will be stored off-chain only.');
+      return null;
+    }
+
     if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+      return null;
     }
 
     try {
@@ -113,21 +187,24 @@ export class SubstrateService {
         cid,
         source,
         hash,
-      }, 'Shadow item submitted');
+      }, 'Shadow item submitted to parachain');
 
       return hash;
     } catch (error) {
-      logger.error({ error }, 'Failed to submit shadow item');
-      throw error;
+      logger.error({ error }, 'Failed to submit shadow item to parachain');
+      // Return null instead of throwing - graceful degradation
+      return null;
     }
   }
 
   /**
    * Get shadow items for an account
+   * Returns empty array if chain is not available
    */
   async getShadowItems(address: string): Promise<ShadowItem[]> {
-    if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+    if (!this.isChainConnected() || !this.api) {
+      logger.debug('Cannot get shadow items - parachain not connected');
+      return [];
     }
 
     try {
@@ -141,11 +218,11 @@ export class SubstrateService {
         timestamp: item.timestamp,
         source: item.source === 0 ? 'GitHub' : 'Twitter',
         metadata: Buffer.from(item.metadata).toString(),
-        deleted: false, // No deletion flag in current implementation
+        deleted: false,
       }));
     } catch (error) {
-      logger.error({ error, address }, 'Failed to get shadow items');
-      throw error;
+      logger.error({ error, address }, 'Failed to get shadow items from parachain');
+      return [];
     }
   }
 
@@ -159,10 +236,12 @@ export class SubstrateService {
 
   /**
    * Check if account has valid consent
+   * Returns false if chain is not available (safe default)
    */
   async hasValidConsent(address: string): Promise<boolean> {
-    if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+    if (!this.isChainConnected() || !this.api) {
+      logger.debug('Cannot check consent - parachain not connected');
+      return false;
     }
 
     try {
@@ -182,7 +261,7 @@ export class SubstrateService {
 
       return true;
     } catch (error) {
-      logger.error({ error, address }, 'Failed to check consent');
+      logger.error({ error, address }, 'Failed to check consent on parachain');
       return false;
     }
   }
@@ -191,8 +270,8 @@ export class SubstrateService {
    * Get consent record
    */
   async getConsentRecord(address: string): Promise<ConsentRecord | null> {
-    if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+    if (!this.isChainConnected() || !this.api) {
+      return null;
     }
 
     try {
@@ -210,8 +289,8 @@ export class SubstrateService {
         messageHash: u8aToHex(record.messageHash),
       };
     } catch (error) {
-      logger.error({ error, address }, 'Failed to get consent record');
-      throw error;
+      logger.error({ error, address }, 'Failed to get consent record from parachain');
+      return null;
     }
   }
 
@@ -222,9 +301,10 @@ export class SubstrateService {
     userAddress: string,
     messageHash: string,
     duration?: number
-  ): Promise<string> {
-    if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+  ): Promise<string | null> {
+    if (!this.isChainConnected() || !this.api) {
+      logger.warn('Cannot grant consent - parachain not connected');
+      return null;
     }
 
     try {
@@ -242,21 +322,22 @@ export class SubstrateService {
         messageHash,
         duration,
         hash,
-      }, 'Consent granted');
+      }, 'Consent granted on parachain');
 
       return hash;
     } catch (error) {
-      logger.error({ error }, 'Failed to grant consent');
-      throw error;
+      logger.error({ error }, 'Failed to grant consent on parachain');
+      return null;
     }
   }
 
   /**
    * Revoke consent
    */
-  async revokeConsent(userAddress: string): Promise<string> {
-    if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+  async revokeConsent(userAddress: string): Promise<string | null> {
+    if (!this.isChainConnected() || !this.api) {
+      logger.warn('Cannot revoke consent - parachain not connected');
+      return null;
     }
 
     try {
@@ -269,12 +350,12 @@ export class SubstrateService {
       logger.info({
         userAddress,
         hash,
-      }, 'Consent revoked');
+      }, 'Consent revoked on parachain');
 
       return hash;
     } catch (error) {
-      logger.error({ error }, 'Failed to revoke consent');
-      throw error;
+      logger.error({ error }, 'Failed to revoke consent on parachain');
+      return null;
     }
   }
 
@@ -336,24 +417,36 @@ export class SubstrateService {
    * Get chain metadata
    */
   async getChainInfo(): Promise<any> {
-    if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+    if (!this.isChainConnected() || !this.api) {
+      return {
+        connected: false,
+        message: 'Parachain not connected'
+      };
     }
 
-    const [chain, nodeName, nodeVersion, health] = await Promise.all([
-      this.api.rpc.system.chain(),
-      this.api.rpc.system.name(),
-      this.api.rpc.system.version(),
-      this.api.rpc.system.health(),
-    ]);
+    try {
+      const [chain, nodeName, nodeVersion, health] = await Promise.all([
+        this.api.rpc.system.chain(),
+        this.api.rpc.system.name(),
+        this.api.rpc.system.version(),
+        this.api.rpc.system.health(),
+      ]);
 
-    return {
-      chain: chain.toString(),
-      nodeName: nodeName.toString(),
-      nodeVersion: nodeVersion.toString(),
-      peers: health.peers.toNumber(),
-      isSyncing: health.isSyncing.isTrue,
-    };
+      return {
+        connected: true,
+        chain: chain.toString(),
+        nodeName: nodeName.toString(),
+        nodeVersion: nodeVersion.toString(),
+        peers: health.peers.toNumber(),
+        isSyncing: health.isSyncing.isTrue,
+      };
+    } catch (error) {
+      logger.error({ error }, 'Failed to get chain info');
+      return {
+        connected: false,
+        error: 'Failed to get chain info'
+      };
+    }
   }
 
   /**
@@ -368,7 +461,7 @@ export class SubstrateService {
       await this.api.rpc.system.health();
       return true;
     } catch (error) {
-      logger.error({ error }, 'Substrate health check failed');
+      logger.debug({ error }, 'Substrate health check failed');
       return false;
     }
   }
@@ -379,29 +472,35 @@ export class SubstrateService {
   async subscribeShadowItems(
     address: string,
     callback: (items: ShadowItem[]) => void
-  ): Promise<() => void> {
-    if (!this.api) {
-      throw new Error('Not connected to Substrate node');
+  ): Promise<(() => void) | null> {
+    if (!this.isChainConnected() || !this.api) {
+      logger.debug('Cannot subscribe to shadow items - parachain not connected');
+      return null;
     }
 
-    const unsub = await this.api.query.shadow.shadowItems(
-      address,
-      (items: any) => {
-        const itemsArray = items.toJSON() as any[];
-        const shadowItems: ShadowItem[] = itemsArray.map(item => ({
-          id: item.id,
-          cid: Buffer.from(item.cid).toString(),
-          encryptedKey: u8aToHex(item.encryptedKey),
-          timestamp: item.timestamp,
-          source: item.source === 0 ? 'GitHub' : 'Twitter',
-          metadata: Buffer.from(item.metadata).toString(),
-          deleted: false, // No deletion flag in current implementation
-        }));
-        callback(shadowItems);
-      }
-    );
+    try {
+      const unsub = await this.api.query.shadow.shadowItems(
+        address,
+        (items: any) => {
+          const itemsArray = items.toJSON() as any[];
+          const shadowItems: ShadowItem[] = itemsArray.map(item => ({
+            id: item.id,
+            cid: Buffer.from(item.cid).toString(),
+            encryptedKey: u8aToHex(item.encryptedKey),
+            timestamp: item.timestamp,
+            source: item.source === 0 ? 'GitHub' : 'Twitter',
+            metadata: Buffer.from(item.metadata).toString(),
+            deleted: false,
+          }));
+          callback(shadowItems);
+        }
+      );
 
-    return unsub as unknown as (() => void);
+      return unsub as unknown as (() => void);
+    } catch (error) {
+      logger.error({ error }, 'Failed to subscribe to shadow items');
+      return null;
+    }
   }
 }
 

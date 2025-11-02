@@ -276,19 +276,21 @@ export class FetcherService {
     // Upload to IPFS
     const ipfsResult = await ipfsService.upload(serializedContent);
 
-    // Submit to blockchain
+    // Submit to blockchain (if available)
     let txHash: string | undefined;
     if (this.servicesAvailable.substrate) {
-      txHash = await substrateService.submitShadowItem(
+      const result = await substrateService.submitShadowItem(
         userAddress,
         ipfsResult.cid,
         encryptedKey.ciphertext,
         content.source === 'github' ? 'GitHub' : 'Twitter',
-        JSON.stringify({ 
+        JSON.stringify({
           timestamp: content.timestamp,
-          url: content.url 
+          url: content.url
         })
       );
+      // Result can be null if parachain is not connected
+      txHash = result || undefined;
     }
 
     const processed: ProcessedItem = {
