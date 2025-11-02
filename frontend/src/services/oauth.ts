@@ -17,7 +17,7 @@ export class OAuthService {
    * Initialize GitHub OAuth flow
    */
   async connectGitHub(userAddress: string): Promise<string> {
-    const response = await axios.post(`${API_BASE}/api/auth/github/connect`, {
+    const response = await axios.post(`${API_BASE}/auth/github/connect`, {
       userAddress,
     });
     return response.data.authUrl;
@@ -27,7 +27,7 @@ export class OAuthService {
    * Get user's connected accounts
    */
   async getConnections(userAddress: string): Promise<Connection[]> {
-    const response = await axios.get(`${API_BASE}/api/auth/connections/${userAddress}`);
+    const response = await axios.get(`${API_BASE}/auth/connections/${userAddress}`);
     return response.data.connections.map((conn: any) => ({
       ...conn,
       connectedAt: new Date(conn.connectedAt),
@@ -38,14 +38,14 @@ export class OAuthService {
    * Revoke a connection
    */
   async revokeConnection(userAddress: string, service: string): Promise<void> {
-    await axios.delete(`${API_BASE}/api/auth/connections/${userAddress}/${service}`);
+    await axios.delete(`${API_BASE}/auth/connections/${userAddress}/${service}`);
   }
 
   /**
    * Check if user has a valid GitHub token
    */
   async hasValidGitHubToken(userAddress: string): Promise<boolean> {
-    const response = await axios.get(`${API_BASE}/api/auth/github/status/${userAddress}`);
+    const response = await axios.get(`${API_BASE}/auth/github/status/${userAddress}`);
     return response.data.hasValidToken;
   }
 }
