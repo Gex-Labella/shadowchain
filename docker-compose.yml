@@ -24,6 +24,7 @@ services:
       - PORT=3001
       - IPFS_API_URL=http://ipfs:5001
       - SUBSTRATE_WS=ws://parachain:9944
+      - FRONTEND_URL=https://shadowchain.locsafe.org
       - DATABASE_URL=postgresql://shadowchain:shadowchain@postgres:5432/shadowchain
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
