@@ -25,6 +25,7 @@ services:
       - IPFS_API_URL=http://ipfs:5001
       - SUBSTRATE_WS=ws://parachain:9944
       - DATABASE_URL=postgresql://shadowchain:shadowchain@postgres:5432/shadowchain
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - TWITTER_BEARER_TOKEN=${TWITTER_BEARER_TOKEN}
