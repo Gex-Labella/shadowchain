@@ -7,7 +7,8 @@
 [![Polkadot SDK](https://img.shields.io/badge/Built%20with-Polkadot%20SDK-E6007A?style=for-the-badge&logo=polkadot)](https://github.com/paritytech/polkadot-sdk)
 [![Substrate](https://img.shields.io/badge/Powered%20by-Substrate-232323?style=for-the-badge)](https://substrate.io)
 [![IPFS](https://img.shields.io/badge/Storage-IPFS-65C2CB?style=for-the-badge&logo=ipfs)](https://ipfs.io)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
+
+
 
 
 
