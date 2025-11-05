@@ -20,7 +20,7 @@
 ---
 
 
-Shadowchain is a **production-ready Web2-to-Web3 bridge** that automatically mirrors your digital activity from centralized platforms (GitHub, Twitter/X) into a **private, user-owned Polkadot parachain** with encrypted IPFS storage. 
+Shadowchain is a **Web2-to-Web3 bridge** that automatically mirrors your digital activity from centralized platforms (GitHub, Twitter/X) into a **private, user-owned Polkadot parachain** with encrypted IPFS storage. 
 
 Unlike traditional backup solutions, Shadowchain gives users **cryptographic ownership** of their data through blockchain-verified timestamps and encryption keys that only they control. This creates an **immutable, portable, and verifiable record** of your professional contributions that no platform can delete, censor, or monetize without your consent.
 
@@ -126,43 +126,42 @@ graph TB
 
 ### **Data Flow Architecture**
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              USER'S BROWSER                                 │
-│  ┌──────────────┐      ┌──────────────┐      ┌─────────────────────────┐  │
-│  │ React DApp   │◄────►│ Polkadot.js  │◄────►│ Encrypted Local Storage │  │
-│  │              │      │ Extension    │      │ (User's Keys)           │  │
-│  └──────┬───────┘      └──────────────┘      └─────────────────────────┘  │
-└─────────┼───────────────────────────────────────────────────────────────────┘
-          │ HTTPS/WSS
-          ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           SHADOWCHAIN BACKEND                               │
-│  ┌────────────────┐    ┌─────────────────┐    ┌──────────────────────┐    │
-│  │ OAuth Service  │───►│ Fetcher Service │───►│ Encryption Service   │    │
-│  │ • GitHub OAuth │    │ • Polls APIs    │    │ • XSalsa20-Poly1305  │    │
-│  │ • Twitter Auth │    │ • Rate Limiting  │    │ • Key Management     │    │
-│  └────────────────┘    └─────────────────┘    └──────────┬───────────┘    │
-└────────────────────────────────────────────────────────────┼───────────────┘
-                                                             │
-                    ┌────────────────────────────────────────┼───────────┐
-                    │                                        ▼           │
-          ┌─────────▼──────────┐                 ┌──────────────────┐   │
-          │ SHADOWCHAIN         │                 │ IPFS NETWORK     │   │
-          │ PARACHAIN          │                 │ • Encrypted Data │   │
-          │                    │◄────CID─────────│ • Pinning Service│   │
-          │ • pallet-shadow    │                 │ • Web3.storage   │   │
-          │ • XCM Support      │                 └──────────────────┘   │
-          │ • Consent Records  │                                        │
-          └────────┬───────────┘                                        │
-                   │                                                     │
-                   ▼                                                     │
-          ┌──────────────────┐                                         │
-          │ POLKADOT         │                                         │
-          │ RELAY CHAIN      │◄────────Shared Security─────────────────┘
-          │ • Consensus      │
-          │ • Finality       │
-          └──────────────────┘
+```mermaid
+graph TB
+    subgraph Browser["USER'S BROWSER"]
+        ReactApp[React DApp]
+        PolkadotJS[Polkadot.js Extension]
+        LocalStorage[Encrypted Local Storage<br/>User's Keys]
+        
+        ReactApp <--> PolkadotJS
+        PolkadotJS <--> LocalStorage
+    end
+    
+    subgraph Backend["SHADOWCHAIN BACKEND"]
+        OAuth[OAuth Service<br/>• GitHub OAuth<br/>• Twitter Auth]
+        Fetcher[Fetcher Service<br/>• Polls APIs<br/>• Rate Limiting]
+        Encryption[Encryption Service<br/>• XSalsa20-Poly1305<br/>• Key Management]
+        
+        OAuth --> Fetcher
+        Fetcher --> Encryption
+    end
+    
+    subgraph Storage["STORAGE LAYER"]
+        IPFS[IPFS NETWORK<br/>• Encrypted Data<br/>• Pinning Service<br/>• Web3.storage]
+        Parachain[SHADOWCHAIN PARACHAIN<br/>• pallet-shadow<br/>• XCM Support<br/>• Consent Records]
+    end
+    
+    subgraph Consensus["CONSENSUS LAYER"]
+        Relay[POLKADOT RELAY CHAIN<br/>• Consensus<br/>• Finality]
+    end
+    
+    ReactApp -->|HTTPS/WSS| OAuth
+    Encryption -->|Store Encrypted Content| IPFS
+    Encryption -->|Store Metadata| Parachain
+    IPFS -->|CID| Parachain
+    Parachain -->|Inherits Security| Relay
+    Relay -->|Shared Security| Parachain
+    Relay -->|Shared Security| IPFS
 ```
 
 ### **Encryption Flow: Zero-Knowledge Architecture**
@@ -413,11 +412,6 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ---
 
-## 🏆 **Recognition & Grants**
-
-- 🎯 **Target**: Polkadot "Bring Web2 to Web3" Hackathon Winner
-- 🎯 **Target**: Web3 Foundation Grant
-- 🎯 **Target**: Substrate Builders Program
 
 ---
 
