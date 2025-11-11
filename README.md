@@ -310,11 +310,6 @@ make dev  # Starts parachain, IPFS, backend, frontend
 - ✅ **Revocable Access**: Rotate keys anytime
 - ✅ **Selective Disclosure**: Share only what you choose
 
-### **Audit Status**
-- [ ] Parity Security Team review (Q1 2024)
-- [ ] Trail of Bits audit (Q2 2024)
-- [ ] Immunefi bug bounty program (Q2 2024)
-
 ---
 
 ## 📈 **Traction & Roadmap**
