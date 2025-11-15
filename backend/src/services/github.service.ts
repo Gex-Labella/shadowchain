@@ -41,6 +41,20 @@ export interface GitHubContent {
   };
 }
 
+export interface GitHubRepository {
+  id: number;
+  name: string;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  private: boolean;
+  language: string | null;
+  stargazers_count: number;
+  updated_at: string;
+  pushed_at: string;
+  default_branch: string;
+}
+
 export class GitHubService {
   private readonly baseUrl = 'https://api.github.com';
   private readonly headers: Record<string, string>;
@@ -104,22 +118,84 @@ export class GitHubService {
   /**
    * Get user's repositories using OAuth token
    */
-  private async getUserRepositories(accessToken: string): Promise<any[]> {
-    const response = await axios.get(
-      `${this.baseUrl}/user/repos`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github.v3+json',
-        },
-        params: {
-          per_page: 30,
-          sort: 'pushed',
-          direction: 'desc',
-        },
-      }
-    );
-    return response.data;
+  async getUserRepositories(accessToken: string, page: number = 1, perPage: number = 20): Promise<GitHubRepository[]> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/user/repos`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+          params: {
+            per_page: perPage,
+            page: page,
+            sort: 'pushed',
+            direction: 'desc',
+            type: 'all',
+          },
+        }
+      );
+      
+      logger.info({ count: response.data.length, page }, 'Fetched user repositories');
+      return response.data;
+    } catch (error) {
+      logger.error({ error }, 'Failed to fetch user repositories');
+      throw error;
+    }
+  }
+
+  /**
+   * Get commits for a specific repository using OAuth token
+   */
+  async getRepositoryCommits(
+    accessToken: string,
+    repoFullName: string,
+    page: number = 1,
+    perPage: number = 20
+  ): Promise<GitHubCommit[]> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/repos/${repoFullName}/commits`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+          params: {
+            per_page: perPage,
+            page: page,
+          },
+        }
+      );
+      
+      logger.info({ count: response.data.length, repo: repoFullName, page }, 'Fetched repository commits');
+      return response.data;
+    } catch (error) {
+      logger.error({ error, repoFullName }, 'Failed to fetch repository commits');
+      throw error;
+    }
+  }
+
+  /**
+   * Get formatted commit content for a specific commit
+   */
+  async getFormattedCommit(
+    accessToken: string,
+    repoFullName: string,
+    commitSha: string
+  ): Promise<GitHubContent> {
+    try {
+      const detailed = await this.fetchCommitDetailsWithToken(
+        repoFullName,
+        commitSha,
+        accessToken
+      );
+      return this.formatCommit(detailed);
+    } catch (error) {
+      logger.error({ error, repoFullName, commitSha }, 'Failed to get formatted commit');
+      throw error;
+    }
   }
 
   /**
@@ -153,17 +229,21 @@ export class GitHubService {
       const commits: GitHubCommit[] = response.data;
       const detailedCommits: GitHubContent[] = [];
 
-      // Fetch detailed information for each commit
+      // Process commits - the list endpoint already has most info we need
       for (const commit of commits) {
         try {
+          // Try to get detailed info, but use list data as fallback
           const detailed = await this.fetchCommitDetailsWithToken(
             repo,
             commit.sha,
             accessToken
           );
-          detailedCommits.push(this.formatCommit(detailed));
+          const merged = { ...commit, ...detailed };
+          detailedCommits.push(this.formatCommit(merged));
         } catch (error) {
           logger.error({ error, sha: commit.sha }, 'Failed to fetch commit details');
+          // Still try to format with the data we have
+          detailedCommits.push(this.formatCommit(commit));
         }
       }
 
@@ -182,17 +262,23 @@ export class GitHubService {
     repo: string,
     sha: string,
     accessToken: string
-  ): Promise<GitHubCommit> {
-    const response = await axios.get(
-      `${this.baseUrl}/repos/${repo}/commits/${sha}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github.v3+json',
-        },
-      }
-    );
-    return response.data;
+  ): Promise<any> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/repos/${repo}/commits/${sha}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github.v3+json',
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      // If detailed fetch fails, return minimal data
+      logger.debug({ error, sha }, 'Failed to fetch detailed commit info, using minimal data');
+      return { sha };
+    }
   }
 
   /**
@@ -219,13 +305,17 @@ export class GitHubService {
       const commits: GitHubCommit[] = response.data;
       const detailedCommits: GitHubContent[] = [];
 
-      // Fetch detailed information for each commit
+      // Process commits - the list endpoint already has most info we need
       for (const commit of commits) {
         try {
+          // Try to get detailed info, but use list data as fallback
           const detailed = await this.fetchCommitDetails(repo, commit.sha);
-          detailedCommits.push(this.formatCommit(detailed));
+          const merged = { ...commit, ...detailed };
+          detailedCommits.push(this.formatCommit(merged));
         } catch (error) {
           logger.error({ error, sha: commit.sha }, 'Failed to fetch commit details');
+          // Still try to format with the data we have
+          detailedCommits.push(this.formatCommit(commit));
         }
       }
 
@@ -240,31 +330,47 @@ export class GitHubService {
   /**
    * Fetch detailed information for a specific commit
    */
-  private async fetchCommitDetails(repo: string, sha: string): Promise<GitHubCommit> {
-    const response = await axios.get(
-      `${this.baseUrl}/repos/${repo}/commits/${sha}`,
-      { headers: this.headers }
-    );
-
-    return response.data;
+  private async fetchCommitDetails(repo: string, sha: string): Promise<any> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/repos/${repo}/commits/${sha}`,
+        { headers: this.headers }
+      );
+      return response.data;
+    } catch (error) {
+      // If detailed fetch fails, return minimal data
+      logger.debug({ error, sha }, 'Failed to fetch detailed commit info, using minimal data');
+      return { sha };
+    }
   }
 
   /**
    * Format commit data for storage
    */
-  private formatCommit(commit: GitHubCommit): GitHubContent {
+  private formatCommit(commit: any): GitHubContent {
+    // Handle different API response formats
+    const commitData = commit.commit || commit;
+    const message = commitData.message || 'No commit message';
+    const author = commitData.author || {};
+    const authorName = author.name || 'Unknown';
+    const authorEmail = author.email || 'unknown@example.com';
+    const authorDate = author.date || new Date().toISOString();
+    const files = commit.files || [];
+    const additions = commit.stats?.additions || 0;
+    const deletions = commit.stats?.deletions || 0;
+
     return {
       source: 'github',
-      url: commit.url,
-      body: `Commit: ${commit.message}\n\nFiles changed: ${commit.files.length}\n+${commit.additions} -${commit.deletions}`,
-      timestamp: new Date(commit.author.date).getTime(),
+      url: commit.html_url || commit.url || `https://github.com/commit/${commit.sha}`,
+      body: `Commit: ${message}\n\nFiles changed: ${files.length}\n+${additions} -${deletions}`,
+      timestamp: new Date(authorDate).getTime(),
       raw_meta: {
         sha: commit.sha,
-        author: commit.author.name,
-        email: commit.author.email,
-        additions: commit.additions,
-        deletions: commit.deletions,
-        filesChanged: commit.files.length,
+        author: authorName,
+        email: authorEmail,
+        additions: additions,
+        deletions: deletions,
+        filesChanged: files.length,
       },
     };
   }

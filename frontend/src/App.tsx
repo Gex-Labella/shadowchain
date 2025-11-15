@@ -48,7 +48,6 @@ function App() {
         draggable
         pauseOnHover
         theme="dark"
-        toastClassName="toast-shadow"
       />
     </div>
   );

@@ -256,6 +256,36 @@ export class OAuthService {
       return false;
     }
   }
+
+  /**
+   * Get all users with OAuth tokens
+   * Used by the fetcher service to find users to sync
+   */
+  async getAllUsersWithTokens(): Promise<string[]> {
+    const users: string[] = [];
+    
+    // Get all users from the token store
+    for (const [key, token] of tokenStore.entries()) {
+      // Skip OAuth state entries
+      if (key.startsWith('oauth_state:')) continue;
+      
+      // Extract user address from key (format: "userAddress:service")
+      const [userAddress] = key.split(':');
+      if (userAddress && !users.includes(userAddress)) {
+        users.push(userAddress);
+      }
+    }
+    
+    return users;
+  }
+
+  /**
+   * Get GitHub access token for a user
+   */
+  async getGitHubToken(userAddress: string): Promise<string | null> {
+    const token = await this.getToken(userAddress, 'github');
+    return token?.accessToken || null;
+  }
 }
 
 // Export singleton instance

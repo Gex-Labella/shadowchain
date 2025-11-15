@@ -7,6 +7,7 @@ import { validateConfig } from './config';
 import logger from './utils/logger';
 import { startApiServer } from './api';
 import { fetcherService } from './services/fetcher.service';
+import { databaseService } from './services/database.service';
 
 /**
  * Main application entry point
@@ -18,6 +19,10 @@ async function main(): Promise<void> {
     // Validate configuration
     validateConfig();
     logger.info('Configuration validated');
+
+    // Initialize database service (runs migrations)
+    await databaseService.initialize();
+    logger.info('Database initialized');
 
     // Start API server
     await startApiServer();
@@ -56,6 +61,9 @@ async function shutdown(): Promise<void> {
   try {
     // Stop fetcher service
     await fetcherService.stop();
+    
+    // Close database connections
+    await databaseService.close();
     
     // Give ongoing requests time to complete
     await new Promise(resolve => setTimeout(resolve, 5000));

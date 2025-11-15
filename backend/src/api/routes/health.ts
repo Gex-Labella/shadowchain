@@ -3,7 +3,6 @@
  */
 
 import { Router } from 'express';
-import { ipfsService } from '../../services/ipfs.service';
 import { substrateService } from '../../services/substrate.service';
 
 export const healthRouter = Router();
@@ -24,20 +23,13 @@ healthRouter.get('/', (req, res) => {
  */
 healthRouter.get('/detailed', async (req, res) => {
   try {
-    const [ipfsHealth, substrateHealth] = await Promise.all([
-      ipfsService.healthCheck(),
-      substrateService.healthCheck(),
-    ]);
+    const substrateHealth = await substrateService.healthCheck();
 
     const health = {
-      status: ipfsHealth && substrateHealth ? 'healthy' : 'degraded',
+      status: substrateHealth ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       services: {
-        ipfs: {
-          connected: ipfsHealth,
-          info: ipfsHealth ? await ipfsService.getNodeInfo() : null,
-        },
         substrate: {
           connected: substrateHealth,
           info: substrateHealth ? await substrateService.getChainInfo() : null,
@@ -60,20 +52,17 @@ healthRouter.get('/detailed', async (req, res) => {
  */
 healthRouter.get('/ready', async (req, res) => {
   try {
-    const [ipfsHealth, substrateHealth] = await Promise.all([
-      ipfsService.healthCheck(),
-      substrateService.healthCheck(),
-    ]);
+    const substrateHealth = await substrateService.healthCheck();
 
-    if (ipfsHealth && substrateHealth) {
+    if (substrateHealth) {
       res.status(200).json({ ready: true });
     } else {
       res.status(503).json({ ready: false });
     }
   } catch (error) {
-    res.status(503).json({ 
-      ready: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
+    res.status(503).json({
+      ready: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });

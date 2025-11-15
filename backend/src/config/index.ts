@@ -125,10 +125,18 @@ const config: Config = {
 
 // Validate required configuration
 export function validateConfig(): void {
-  const required = [
-    { key: 'githubToken', value: config.githubToken },
-    { key: 'twitterBearerToken', value: config.twitterBearerToken },
-  ];
+  // OAuth is now the primary method, so legacy tokens are optional
+  const required: Array<{ key: string; value: any }> = [];
+  
+  // Check if OAuth is configured
+  if (!config.githubClientId || !config.githubClientSecret) {
+    // OAuth not configured, check if legacy tokens exist for backward compatibility
+    if (!config.githubToken && !config.twitterBearerToken) {
+      throw new Error(
+        'Either configure OAuth (GITHUB_CLIENT_ID/SECRET) or provide legacy tokens (GITHUB_TOKEN/TWITTER_BEARER_TOKEN)'
+      );
+    }
+  }
   
   const missing = required.filter(({ value }) => !value);
   

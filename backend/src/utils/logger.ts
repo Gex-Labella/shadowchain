@@ -37,5 +37,9 @@ export const fetcherLogger = logger.child({ module: 'fetcher' });
 export const ipfsLogger = logger.child({ module: 'ipfs' });
 export const substrateLogger = logger.child({ module: 'substrate' });
 export const authLogger = logger.child({ module: 'auth' });
+export const cryptoLogger = logger.child({ module: 'crypto' });
+export const oauthLogger = logger.child({ module: 'oauth' });
+export const twitterLogger = logger.child({ module: 'twitter' });
+export const dbLogger = logger.child({ module: 'database' });
 
 export default logger;

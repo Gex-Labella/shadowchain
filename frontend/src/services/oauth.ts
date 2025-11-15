@@ -2,9 +2,23 @@
  * OAuth Service for handling social account connections
  */
 
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
+import { config } from '../config/environment';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://54.197.131.122:3001';
+const API_BASE = config.api.baseUrl;
+
+// Configure axios defaults
+axios.defaults.timeout = config.api.timeout;
+axios.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    // Handle common errors
+    if (error.response?.status === 401) {
+      console.error('Unauthorized request');
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface Connection {
   service: string;
@@ -17,36 +31,56 @@ export class OAuthService {
    * Initialize GitHub OAuth flow
    */
   async connectGitHub(userAddress: string): Promise<string> {
-    const response = await axios.post(`${API_BASE}/api/auth/github/connect`, {
-      userAddress,
-    });
-    return response.data.authUrl;
+    try {
+      const response = await axios.post(`${API_BASE}/auth/github/connect`, {
+        userAddress,
+      });
+      return response.data.authUrl;
+    } catch (error) {
+      console.error('Failed to connect GitHub:', error);
+      throw new Error('Failed to initialize GitHub connection');
+    }
   }
 
   /**
    * Get user's connected accounts
    */
   async getConnections(userAddress: string): Promise<Connection[]> {
-    const response = await axios.get(`${API_BASE}/api/auth/connections/${userAddress}`);
-    return response.data.connections.map((conn: any) => ({
-      ...conn,
-      connectedAt: new Date(conn.connectedAt),
-    }));
+    try {
+      const response = await axios.get(`${API_BASE}/auth/connections/${userAddress}`);
+      return response.data.connections.map((conn: any) => ({
+        ...conn,
+        connectedAt: new Date(conn.connectedAt),
+      }));
+    } catch (error) {
+      console.error('Failed to get connections:', error);
+      return [];
+    }
   }
 
   /**
    * Revoke a connection
    */
   async revokeConnection(userAddress: string, service: string): Promise<void> {
-    await axios.delete(`${API_BASE}/api/auth/connections/${userAddress}/${service}`);
+    try {
+      await axios.delete(`${API_BASE}/auth/connections/${userAddress}/${service}`);
+    } catch (error) {
+      console.error('Failed to revoke connection:', error);
+      throw new Error('Failed to revoke connection');
+    }
   }
 
   /**
    * Check if user has a valid GitHub token
    */
   async hasValidGitHubToken(userAddress: string): Promise<boolean> {
-    const response = await axios.get(`${API_BASE}/api/auth/github/status/${userAddress}`);
-    return response.data.hasValidToken;
+    try {
+      const response = await axios.get(`${API_BASE}/auth/github/status/${userAddress}`);
+      return response.data.hasValidToken;
+    } catch (error) {
+      console.error('Failed to check GitHub token status:', error);
+      return false;
+    }
   }
 }
 

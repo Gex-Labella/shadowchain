@@ -1,27 +1,24 @@
 /**
- * Fetcher Service - Orchestrates data fetching, encryption, and storage
+ * Fetcher Service - Orchestrates data fetching and blockchain storage
  */
 
 import cron from 'node-cron';
-import { hexToU8a } from '@polkadot/util';
-import * as crypto from '../../../shared-crypto/dist';
 import config from '../config';
 import { fetcherLogger as logger } from '../utils/logger';
 import { githubService, GitHubContent } from './github.service';
 import { twitterService, TwitterContent } from './twitter.service';
-import { ipfsService, IPFSUploadResult } from './ipfs.service';
 import { substrateService } from './substrate.service';
 import { oauthService } from './oauth.service';
+import { databaseService } from './database.service';
 
 type ContentItem = GitHubContent | TwitterContent;
 
 export interface ProcessedItem {
   source: 'github' | 'twitter';
   originalUrl: string;
-  ipfsCid: string;
-  encryptedKey: string;
+  content: any; // The raw content to be stored
   timestamp: number;
-  txHash?: string;
+  txData?: { method: string; args: any[] }; // Unsigned transaction data for user signing
 }
 
 export class FetcherService {
@@ -31,8 +28,7 @@ export class FetcherService {
   private servicesAvailable = {
     github: false,
     twitter: false,
-    substrate: false,
-    ipfs: false
+    substrate: false
   };
 
   /**
@@ -56,8 +52,16 @@ export class FetcherService {
 
       logger.info({ schedule, availableServices: this.servicesAvailable }, 'Fetcher service started');
 
+      // Initialize database
+      try {
+        await databaseService.initialize();
+        logger.info('Database initialized for fetcher service');
+      } catch (error) {
+        logger.warn({ error }, 'Database initialization failed - will run without persistence');
+      }
+
       // Run initial sync if all required services are available
-      if (this.servicesAvailable.substrate && this.servicesAvailable.ipfs && 
+      if (this.servicesAvailable.substrate &&
           (this.servicesAvailable.github || this.servicesAvailable.twitter)) {
         await this.runSync();
       }
@@ -127,15 +131,6 @@ export class FetcherService {
       this.servicesAvailable.twitter = false;
     }
 
-    // Check IPFS connection
-    try {
-      const ipfsHealthy = await ipfsService.healthCheck();
-      this.servicesAvailable.ipfs = ipfsHealthy;
-      logger.info({ healthy: ipfsHealthy }, 'IPFS health check');
-    } catch (error) {
-      logger.warn({ error }, 'IPFS health check failed');
-      this.servicesAvailable.ipfs = false;
-    }
 
     logger.info({ availableServices: this.servicesAvailable }, 'Service initialization complete');
   }
@@ -150,8 +145,8 @@ export class FetcherService {
     }
 
     // Check if we have minimum required services
-    if (!this.servicesAvailable.substrate || !this.servicesAvailable.ipfs) {
-      logger.warn('Cannot run sync - Substrate or IPFS not available');
+    if (!this.servicesAvailable.substrate) {
+      logger.warn('Cannot run sync - Substrate not available');
       return [];
     }
 
@@ -198,12 +193,6 @@ export class FetcherService {
   async syncUserData(userAddress: string): Promise<ProcessedItem[]> {
     logger.info({ userAddress }, 'Syncing user data');
 
-    // Get user's encryption key
-    const userPublicKey = await this.getUserPublicKey(userAddress);
-    if (!userPublicKey) {
-      throw new Error('User public key not found');
-    }
-
     // Get last sync time for this user
     const lastSync = this.lastSyncTime.get(userAddress);
     
@@ -243,8 +232,19 @@ export class FetcherService {
     // Process each content item
     for (const content of allContent.slice(0, config.maxItemsPerSync)) {
       try {
-        const processed = await this.processContentItem(content, userAddress, userPublicKey);
+        const processed = await this.processContentItem(content, userAddress);
         processedItems.push(processed);
+        
+        // Store in database for persistence
+        try {
+          await databaseService.storePendingItem(processed, userAddress);
+          logger.debug({
+            userAddress,
+            source: processed.source
+          }, 'Stored pending item in database');
+        } catch (dbError) {
+          logger.warn({ error: dbError }, 'Failed to store item in database - continuing without persistence');
+        }
       } catch (error) {
         logger.error({ error, content }, 'Failed to process content item');
       }
@@ -257,59 +257,79 @@ export class FetcherService {
   }
 
   /**
-   * Process a single content item
+   * Process a single content item for blockchain storage
+   * No encryption or IPFS - just prepare transaction with raw content
    */
   private async processContentItem(
     content: ContentItem,
-    userAddress: string,
-    userPublicKey: Uint8Array
+    userAddress: string
   ): Promise<ProcessedItem> {
-    // Encrypt content
-    const { encryptedContent, encryptedKey } = await crypto.encryptContent(
-      content,
-      userPublicKey
-    );
+    try {
+      // Validate content has required fields
+      if (!content.timestamp || !content.url) {
+        logger.warn({ content }, 'Skipping content item with missing required fields');
+        throw new Error('Missing required fields in content item');
+      }
 
-    // Serialize encrypted content
-    const serializedContent = crypto.serializeEncryptedPayload(encryptedContent);
-
-    // Upload to IPFS
-    const ipfsResult = await ipfsService.upload(serializedContent);
-
-    // Submit to blockchain (if available)
-    let txHash: string | undefined;
-    if (this.servicesAvailable.substrate) {
-      const result = await substrateService.submitShadowItem(
+      logger.debug({
         userAddress,
-        ipfsResult.cid,
-        encryptedKey.ciphertext,
-        content.source === 'github' ? 'GitHub' : 'Twitter',
-        JSON.stringify({
-          timestamp: content.timestamp,
-          url: content.url
-        })
-      );
-      // Result can be null if parachain is not connected
-      txHash = result || undefined;
+        source: content.source
+      }, 'Processing content item for direct blockchain storage');
+
+      // Prepare transaction with raw content for blockchain
+      let txData: { method: string; args: any[] } | undefined;
+      if (this.servicesAvailable.substrate) {
+        const preparedTx = await substrateService.prepareShadowItemTx(
+          userAddress,
+          JSON.stringify(content), // Store the entire content as JSON
+          content.source === 'github' ? 'GitHub' : 'Twitter',
+          JSON.stringify({
+            timestamp: content.timestamp,
+            url: content.url
+          })
+        );
+        txData = preparedTx || undefined;
+        
+        if (!preparedTx) {
+          logger.debug({
+            userAddress,
+            source: content.source
+          }, 'Transaction not prepared - storing in off-chain mode');
+        }
+      }
+
+      const processed: ProcessedItem = {
+        source: content.source,
+        originalUrl: content.url,
+        content: content,
+        timestamp: content.timestamp,
+        txData,
+      };
+
+      logger.info({
+        userAddress,
+        source: content.source,
+        hasTxData: !!txData
+      }, 'Content item processed successfully for direct blockchain storage');
+
+      return processed;
+    } catch (error) {
+      // Log the actual error details
+      const errorDetails = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined,
+        content: {
+          source: content.source,
+          url: content.url,
+          hasTimestamp: !!content.timestamp,
+          hasBody: !!content.body
+        }
+      };
+      
+      logger.error(errorDetails, 'Failed to process content item - detailed error');
+      throw error;
     }
-
-    const processed: ProcessedItem = {
-      source: content.source,
-      originalUrl: content.url,
-      ipfsCid: ipfsResult.cid,
-      encryptedKey: crypto.serializeEncryptedPayload(encryptedKey),
-      timestamp: content.timestamp,
-      txHash,
-    };
-
-    logger.info({ 
-      userAddress,
-      source: content.source,
-      cid: ipfsResult.cid,
-      txHash 
-    }, 'Content item processed');
-
-    return processed;
   }
 
   /**
@@ -318,40 +338,42 @@ export class FetcherService {
    * For now, we'll use a simplified approach
    */
   private async getUsersWithConsent(): Promise<string[]> {
-    // This is a placeholder - in production, you'd query the chain
-    // for all accounts with valid consent records
-    const configuredUsers = process.env.SHADOW_USERS?.split(',') || [];
-    
-    if (!this.servicesAvailable.substrate) {
-      // If substrate isn't available, return empty array
-      return [];
-    }
-    
     const validUsers: string[] = [];
     
-    for (const user of configuredUsers) {
-      const hasConsent = await substrateService.hasValidConsent(user.trim());
-      if (hasConsent) {
-        validUsers.push(user.trim());
+    // First, check for users configured via environment variable
+    const configuredUsers = process.env.SHADOW_USERS?.split(',') || [];
+    
+    // Also get all users who have connected OAuth accounts
+    const oauthUsers = await this.getUsersWithOAuthTokens();
+    
+    // Combine both lists (remove duplicates)
+    const allUsers = [...new Set([...configuredUsers, ...oauthUsers])];
+    
+    // If substrate is available, check for consent
+    if (this.servicesAvailable.substrate) {
+      for (const user of allUsers) {
+        const hasConsent = await substrateService.hasValidConsent(user.trim());
+        if (hasConsent) {
+          validUsers.push(user.trim());
+        }
       }
+    } else {
+      // If substrate isn't available but we're in development/demo mode,
+      // allow OAuth users to sync without blockchain consent
+      logger.warn('Substrate not available - allowing OAuth users without blockchain consent for demo');
+      return oauthUsers;
     }
 
     return validUsers;
   }
 
   /**
-   * Get user's public encryption key
-   * In a real implementation, this would be stored on-chain or derived
+   * Get users who have connected OAuth accounts
    */
-  private async getUserPublicKey(userAddress: string): Promise<Uint8Array | null> {
-    // This is a placeholder - in production, you'd:
-    // 1. Get the user's encryption public key from on-chain storage
-    // 2. Or derive it from their account if using a deterministic scheme
-    
-    // For demo purposes, we'll use a test key
-    const testKey = hexToU8a('0x' + '1'.repeat(64));
-    return testKey;
+  private async getUsersWithOAuthTokens(): Promise<string[]> {
+    return await oauthService.getAllUsersWithTokens();
   }
+
 
   /**
    * Manual sync for a specific user

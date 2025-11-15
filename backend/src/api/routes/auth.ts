@@ -6,6 +6,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { oauthService } from '../../services/oauth.service';
 import { substrateService } from '../../services/substrate.service';
+import { fetcherService } from '../../services/fetcher.service';
+import { databaseService } from '../../services/database.service';
 import { authLogger as logger } from '../../utils/logger';
 
 export const authRouter = Router();
@@ -72,6 +74,12 @@ authRouter.get('/github/callback', async (req: Request, res: Response, next: Nex
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       return res.redirect(`${frontendUrl}/oauth/callback?error=auth_failed`);
     }
+
+    // Trigger immediate sync for this user (don't wait for it to complete)
+    logger.info({ userAddress: token.userAddress }, 'Triggering immediate sync after GitHub connection');
+    fetcherService.syncUserData(token.userAddress).catch(error => {
+      logger.error({ error, userAddress: token.userAddress }, 'Background sync failed after GitHub connection');
+    });
 
     // Redirect to frontend with success
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -176,3 +184,5 @@ authRouter.get('/chain/status', async (req: Request, res: Response, next: NextFu
     });
   }
 });
+
+// Note: Key registration endpoints have been removed since encryption is no longer used

@@ -11,9 +11,6 @@ COPY frontend/package*.json ./
 # Install dependencies
 RUN npm ci
 
-# Copy shared-crypto module
-COPY shared-crypto /shared-crypto
-
 # Copy only the source files (not the entire directory)
 COPY frontend/public ./public
 COPY frontend/src ./src
@@ -28,18 +25,24 @@ ENV REACT_APP_GITHUB_CLIENT_ID=${REACT_APP_GITHUB_CLIENT_ID}
 # Build the app
 RUN npm run build
 
-# Runtime stage
-FROM nginx:alpine
+# Runtime stage - simplified without Nginx
+FROM node:18-alpine
 
-# Copy built files
-COPY --from=builder /app/build /usr/share/nginx/html
+# Install serve - a lightweight static file server
+RUN npm install -g serve
 
-# Copy custom nginx config
-COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# Create a non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 
-# Use default nginx user instead of creating custom one
-RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx
+# Copy built files from builder stage
+COPY --from=builder --chown=nodejs:nodejs /app/build /app
 
-EXPOSE 80
+# Switch to non-root user
+USER nodejs
 
-CMD ["nginx", "-g", "daemon off;"]
+# Expose port 3000 (matching what host Nginx expects)
+EXPOSE 3000
+
+# Serve the static files
+CMD ["serve", "-s", "/app", "-l", "3000"]

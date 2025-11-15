@@ -6,22 +6,29 @@ import { toast } from 'react-toastify';
 interface WalletState {
   isInitialized: boolean;
   isConnected: boolean;
-  accounts: InjectedAccountWithMeta[];
-  selectedAccount: InjectedAccountWithMeta | null;
+  availableAccounts: InjectedAccountWithMeta[]; // All accounts from extension
+  connectedAccounts: InjectedAccountWithMeta[]; // Accounts user chose to connect
+  selectedAccount: InjectedAccountWithMeta | null; // Currently active account
   injector: any;
+  isAccountSelectionOpen: boolean;
   
   initializeWallet: () => Promise<void>;
-  connect: () => Promise<void>;
+  openAccountSelection: () => Promise<void>;
+  closeAccountSelection: () => void;
+  connectAccounts: (accounts: InjectedAccountWithMeta[]) => Promise<void>;
   disconnect: () => void;
   selectAccount: (account: InjectedAccountWithMeta) => Promise<void>;
+  switchAccount: (account: InjectedAccountWithMeta) => Promise<void>;
 }
 
 export const useWalletStore = create<WalletState>((set, get) => ({
   isInitialized: false,
   isConnected: false,
-  accounts: [],
+  availableAccounts: [],
+  connectedAccounts: [],
   selectedAccount: null,
   injector: null,
+  isAccountSelectionOpen: false,
 
   initializeWallet: async () => {
     try {
@@ -34,26 +41,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         return;
       }
 
-      // Get saved account from localStorage
-      const savedAddress = localStorage.getItem('shadowchain_account');
-      
-      if (savedAddress) {
-        const allAccounts = await web3Accounts();
-        const savedAccount = allAccounts.find(acc => acc.address === savedAddress);
-        
-        if (savedAccount) {
-          const injector = await web3FromAddress(savedAccount.address);
-          set({
-            isInitialized: true,
-            isConnected: true,
-            accounts: allAccounts,
-            selectedAccount: savedAccount,
-            injector,
-          });
-          return;
-        }
-      }
-
+      // Don't auto-connect, just mark as initialized
       set({ isInitialized: true });
     } catch (error) {
       console.error('Failed to initialize wallet:', error);
@@ -62,7 +50,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     }
   },
 
-  connect: async () => {
+  openAccountSelection: async () => {
     try {
       const extensions = await web3Enable('Shadow Chain');
       
@@ -78,24 +66,53 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         return;
       }
 
-      set({ accounts: allAccounts });
-      
-      // Auto-select first account if only one
-      if (allAccounts.length === 1) {
-        await get().selectAccount(allAccounts[0]);
-      }
+      set({
+        availableAccounts: allAccounts,
+        isAccountSelectionOpen: true
+      });
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      toast.error('Failed to connect wallet');
+      console.error('Failed to get accounts:', error);
+      toast.error('Failed to get accounts');
+    }
+  },
+
+  closeAccountSelection: () => {
+    set({ isAccountSelectionOpen: false });
+  },
+
+  connectAccounts: async (accounts: InjectedAccountWithMeta[]) => {
+    if (accounts.length === 0) {
+      toast.error('Please select at least one account');
+      return;
+    }
+
+    try {
+      // Get injector for the first account
+      const injector = await web3FromAddress(accounts[0].address);
+      
+      set({
+        isConnected: true,
+        connectedAccounts: accounts,
+        selectedAccount: accounts[0],
+        injector,
+        isAccountSelectionOpen: false
+      });
+      
+      toast.success(`Connected ${accounts.length} account${accounts.length > 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error('Failed to connect accounts:', error);
+      toast.error('Failed to connect accounts');
     }
   },
 
   disconnect: () => {
+    // Clear any saved state
     localStorage.removeItem('shadowchain_account');
     set({
       isConnected: false,
       selectedAccount: null,
-      accounts: [],
+      connectedAccounts: [],
+      availableAccounts: [],
       injector: null,
     });
     toast.info('Wallet disconnected');
@@ -104,8 +121,6 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   selectAccount: async (account: InjectedAccountWithMeta) => {
     try {
       const injector = await web3FromAddress(account.address);
-      
-      localStorage.setItem('shadowchain_account', account.address);
       
       set({
         isConnected: true,
@@ -117,6 +132,29 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     } catch (error) {
       console.error('Failed to select account:', error);
       toast.error('Failed to select account');
+    }
+  },
+
+  switchAccount: async (account: InjectedAccountWithMeta) => {
+    // Make sure the account is in connected accounts
+    const { connectedAccounts } = get();
+    if (!connectedAccounts.find(acc => acc.address === account.address)) {
+      toast.error('Account not connected');
+      return;
+    }
+
+    try {
+      const injector = await web3FromAddress(account.address);
+      
+      set({
+        selectedAccount: account,
+        injector,
+      });
+      
+      toast.info(`Switched to ${account.meta.name || account.address}`);
+    } catch (error) {
+      console.error('Failed to switch account:', error);
+      toast.error('Failed to switch account');
     }
   },
 }));

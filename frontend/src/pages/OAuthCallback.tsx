@@ -13,10 +13,8 @@ const OAuthCallback: React.FC = () => {
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
+      // Check for error first
       const error = searchParams.get('error');
-
       if (error) {
         setStatus('error');
         setMessage(`AUTHORIZATION FAILED: ${error.toUpperCase()}`);
@@ -25,40 +23,32 @@ const OAuthCallback: React.FC = () => {
         return;
       }
 
-      if (!code || !state) {
-        setStatus('error');
-        setMessage('INVALID CALLBACK PARAMETERS');
-        toast.error('Invalid callback parameters');
-        setTimeout(() => navigate('/dashboard'), 3000);
+      // Check if this is a successful redirect from backend
+      const success = searchParams.get('success');
+      const service = searchParams.get('service');
+      const username = searchParams.get('username');
+
+      if (success === 'true' && service && username) {
+        // Backend already processed the OAuth flow successfully
+        setStatus('success');
+        setMessage(`${service.toUpperCase()} CONNECTED SUCCESSFULLY`);
+        toast.success(`${service} account @${username} connected!`);
+        setTimeout(() => navigate('/dashboard'), 2000);
         return;
       }
 
-      try {
-        // Exchange the code for a token
-        const response = await axios.post(
-          `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/auth/github/callback`,
-          {
-            code,
-            state,
-            userAddress: selectedAccount?.address || state,
-          }
-        );
-
-        if (response.data.success) {
-          setStatus('success');
-          setMessage('GITHUB CONNECTED SUCCESSFULLY');
-          toast.success('GitHub account connected!');
-          setTimeout(() => navigate('/dashboard'), 2000);
-        } else {
-          throw new Error(response.data.error || 'Connection failed');
-        }
-      } catch (error: any) {
-        console.error('OAuth callback error:', error);
+      // If we get here, something went wrong
+      const callbackError = searchParams.get('error');
+      if (callbackError) {
         setStatus('error');
-        setMessage(`CONNECTION FAILED: ${error.message?.toUpperCase() || 'UNKNOWN ERROR'}`);
-        toast.error('Failed to connect GitHub account');
-        setTimeout(() => navigate('/dashboard'), 3000);
+        setMessage(`AUTHORIZATION FAILED: ${callbackError.toUpperCase()}`);
+        toast.error('Authorization failed');
+      } else {
+        setStatus('error');
+        setMessage('INVALID CALLBACK PARAMETERS');
+        toast.error('Invalid callback parameters');
       }
+      setTimeout(() => navigate('/dashboard'), 3000);
     };
 
     handleCallback();

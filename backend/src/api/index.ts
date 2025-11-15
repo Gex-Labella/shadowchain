@@ -11,10 +11,15 @@ import { apiLogger as logger } from '../utils/logger';
 import { healthRouter } from './routes/health';
 import { shadowRouter } from './routes/shadow';
 import { authRouter } from './routes/auth';
+import { transactionRouter } from './routes/transactions';
 import { errorHandler } from './middleware/error-handler';
 
 export function createApi(): express.Application {
   const app = express();
+
+  // Trust proxy when running behind reverse proxies (Docker, nginx, etc)
+  // Set to 1 for single proxy to avoid rate limiting bypass vulnerability
+  app.set('trust proxy', 1);
 
   // Security middleware
   app.use(helmet());
@@ -60,6 +65,7 @@ export function createApi(): express.Application {
   apiRouter.use('/health', healthRouter);
   apiRouter.use('/shadow', shadowRouter);
   apiRouter.use('/auth', authRouter);
+  apiRouter.use('/transactions', transactionRouter);
 
   // Mount API router
   app.use('/api', apiRouter);

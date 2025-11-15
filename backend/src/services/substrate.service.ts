@@ -12,8 +12,7 @@ import { substrateLogger as logger } from '../utils/logger';
 
 export interface ShadowItem {
   id: string;
-  cid: string;
-  encryptedKey: string;
+  content: string;
   timestamp: number;
   source: 'GitHub' | 'Twitter';
   metadata: string;
@@ -56,7 +55,23 @@ export class SubstrateService {
       // Set a connection timeout
       const connectionPromise = ApiPromise.create({
         provider,
-        types: config.chainTypes,
+        types: {
+          // Custom types for Shadow pallet to match runtime
+          ShadowItem: {
+            id: '[u8; 32]',
+            content: 'Vec<u8>',
+            timestamp: 'u64',
+            source: 'u8',
+            metadata: 'Vec<u8>'
+          },
+          ConsentRecord: {
+            granted_at: 'BlockNumber',
+            expires_at: 'Option<BlockNumber>',
+            message_hash: 'Vec<u8>'
+          },
+          ...config.chainTypes
+        }
+        // Don't override signedExtensions - let the chain metadata determine them
       });
 
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -78,12 +93,6 @@ export class SubstrateService {
 
       this.isConnected = true;
       this.connectionAttempted = true;
-
-      // Initialize signer if backend signer key is provided
-      if (process.env.BACKEND_SIGNER_PRIVATE_KEY) {
-        this.signerAccount = this.keyring.addFromUri(process.env.BACKEND_SIGNER_PRIVATE_KEY);
-        logger.info({ address: this.signerAccount.address }, 'Backend signer initialized');
-      }
 
       // Set up reconnection handler
       provider.on('disconnected', () => {
@@ -148,54 +157,138 @@ export class SubstrateService {
   }
 
   /**
-   * Submit a shadow item to the chain
-   * Returns null if chain is not available (graceful degradation)
+   * Prepare a shadow item transaction for user signing
+   * Returns the unsigned transaction data or null if chain is not available
    */
-  async submitShadowItem(
+  async prepareShadowItemTx(
     userAddress: string,
-    cid: string,
-    encryptedKey: Uint8Array,
+    content: string,
     source: 'GitHub' | 'Twitter',
     metadata: string = ''
-  ): Promise<string | null> {
+  ): Promise<{ method: string; args: any[] } | null> {
     if (!this.isChainConnected()) {
-      logger.warn('Cannot submit shadow item - parachain not connected. Item will be stored off-chain only.');
+      logger.warn('Cannot prepare shadow item tx - parachain not connected.');
       return null;
     }
 
     if (!this.api) {
+      logger.warn('API not initialized - cannot prepare transaction');
       return null;
     }
 
     try {
-      // Create extrinsic
-      // Convert source to numeric value (0 = GitHub, 1 = Twitter)
-      const sourceValue = source === 'GitHub' ? 0 : 1;
+      // Check if shadow pallet exists
+      if (!this.api.tx || !this.api.tx.shadow) {
+        logger.warn('Shadow pallet not available on this chain - running in off-chain mode');
+        return null;
+      }
       
-      const extrinsic = this.api.tx.shadow.submitShadowItem(
-        Array.from(Buffer.from(cid)),
-        Array.from(encryptedKey),
-        sourceValue,
-        Array.from(Buffer.from(metadata))
-      );
-
-      // Submit extrinsic
-      const hash = await this.submitExtrinsic(extrinsic, userAddress);
+      // Check if the submitShadowItem method exists
+      if (!this.api.tx.shadow.submitShadowItem) {
+        logger.warn('submitShadowItem method not found in shadow pallet');
+        return null;
+      }
+      
+      // Inspect the submitShadowItem metadata to determine argument count
+      const txMetadata = this.api.tx.shadow.submitShadowItem.meta;
+      const argCount = txMetadata.args.length;
+      const argNames = txMetadata.args.map(arg => arg.name.toString());
       
       logger.info({
-        userAddress,
-        cid,
-        source,
-        hash,
-      }, 'Shadow item submitted to parachain');
+        methodName: txMetadata.name.toString(),
+        argCount,
+        args: txMetadata.args.map(arg => ({
+          name: arg.name.toString(),
+          type: arg.type.toString()
+        }))
+      }, 'submitShadowItem metadata from chain');
+      
+      // Convert content to hex string for the blockchain
+      const contentHex = u8aToHex(Buffer.from(JSON.stringify(content)));
+      const metadataHex = u8aToHex(Buffer.from(metadata));
+      const sourceValue = source === 'GitHub' ? 0 : 1;
+      
+      let extrinsic: any;
+      
+      // Dynamically handle different argument counts
+      if (argCount === 4) {
+        // Old chain version: (content, encrypted_key, source, metadata)
+        // Check if second argument is 'encrypted_key' or similar
+        const hasEncryptedKey = argNames[1].toLowerCase().includes('encrypt') ||
+                                argNames[1].toLowerCase().includes('key');
+        
+        if (hasEncryptedKey) {
+          logger.info({
+            contentHex: contentHex.substring(0, 40) + '...',
+            encryptedKey: '0x (empty)',
+            source: sourceValue,
+            metadataHex: metadataHex.substring(0, 40) + '...'
+          }, 'Sending to blockchain with 4 arguments (including empty encrypted_key for compatibility)');
+          
+          // Pass empty encrypted key as second argument
+          extrinsic = this.api.tx.shadow.submitShadowItem(
+            contentHex,
+            '0x',  // Empty encrypted key for compatibility
+            sourceValue,
+            metadataHex
+          );
+        } else {
+          // Different 4-argument structure, adjust accordingly
+          logger.warn('Unexpected 4-argument structure, attempting with default order');
+          extrinsic = this.api.tx.shadow.submitShadowItem(
+            contentHex,
+            sourceValue,
+            metadataHex,
+            '0x'  // Empty fourth argument
+          );
+        }
+      } else if (argCount === 3) {
+        // New chain version: (content, source, metadata)
+        logger.info({
+          contentHex: contentHex.substring(0, 40) + '...',
+          source: sourceValue,
+          metadataHex: metadataHex.substring(0, 40) + '...'
+        }, 'Sending to blockchain with 3 arguments');
+        
+        extrinsic = this.api.tx.shadow.submitShadowItem(
+          contentHex,
+          sourceValue,
+          metadataHex
+        );
+      } else {
+        // Unexpected number of arguments
+        logger.error({
+          expectedArgs: 'either 3 or 4',
+          actualArgs: argCount,
+          argNames
+        }, 'Unexpected number of arguments for submitShadowItem');
+        throw new Error(`Unexpected argument count for submitShadowItem: ${argCount}`);
+      }
 
-      return hash;
+      // Return the unsigned transaction data
+      return {
+        method: extrinsic.method.toHex(),
+        args: [
+          content,
+          source === 'GitHub' ? 0 : 1, // Convert to u8 for the args as well
+          metadata
+        ]
+      };
     } catch (error) {
-      logger.error({ error }, 'Failed to submit shadow item to parachain');
-      // Return null instead of throwing - graceful degradation
+      logger.error({
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        } : error,
+        userAddress,
+        content: content.substring(0, 50) + '...',
+        source
+      }, 'Failed to prepare shadow item transaction');
       return null;
     }
   }
+
 
   /**
    * Get shadow items for an account
@@ -208,18 +301,57 @@ export class SubstrateService {
     }
 
     try {
+      // Check if shadow pallet exists
+      if (!this.api.query.shadow) {
+        logger.debug('Shadow pallet not available on this chain');
+        return [];
+      }
+      
       const items = await this.api.query.shadow.shadowItems(address);
       const itemsArray = items.toJSON() as any[];
 
-      return itemsArray.map(item => ({
-        id: item.id,
-        cid: Buffer.from(item.cid).toString(),
-        encryptedKey: u8aToHex(item.encryptedKey),
-        timestamp: item.timestamp,
-        source: item.source === 0 ? 'GitHub' : 'Twitter',
-        metadata: Buffer.from(item.metadata).toString(),
-        deleted: false,
-      }));
+      return itemsArray.map(item => {
+        // Log what we're getting from blockchain
+        logger.info({
+          itemId: item.id,
+          contentLength: item.content?.length || 0,
+          contentType: typeof item.content
+        }, 'Raw item from blockchain');
+        
+        // Handle content conversion
+        let contentStr: string;
+        if (Array.isArray(item.content)) {
+          // If it's an array, convert to string
+          contentStr = Buffer.from(item.content).toString('utf8');
+          try {
+            // Try to parse as JSON if it looks like stringified JSON
+            const parsed = JSON.parse(contentStr);
+            contentStr = parsed;
+          } catch {
+            // If not JSON, keep as string
+          }
+        } else if (typeof item.content === 'string') {
+          contentStr = item.content;
+        } else {
+          // Try to convert whatever format it is
+          contentStr = Buffer.from(item.content).toString('utf8');
+        }
+        
+        // Convert timestamp from blockchain format to milliseconds
+        // Blockchain stores as Unix timestamp in seconds, we need milliseconds
+        const timestampMs = typeof item.timestamp === 'number'
+          ? item.timestamp * 1000  // Convert seconds to milliseconds
+          : parseInt(item.timestamp.toString()) * 1000;
+        
+        return {
+          id: item.id,
+          content: contentStr,
+          timestamp: timestampMs,
+          source: item.source as 'GitHub' | 'Twitter', // Already a string from the enum
+          metadata: Buffer.from(item.metadata).toString(),
+          deleted: item.deleted || false,
+        };
+      });
     } catch (error) {
       logger.error({ error, address }, 'Failed to get shadow items from parachain');
       return [];
@@ -245,6 +377,12 @@ export class SubstrateService {
     }
 
     try {
+      // Check if shadow pallet exists
+      if (!this.api.query.shadow) {
+        logger.debug('Shadow pallet not available on this chain');
+        return false;
+      }
+      
       const consent = await this.api.query.shadow.consentRecords(address);
       
       if (consent.isEmpty) {
@@ -275,6 +413,12 @@ export class SubstrateService {
     }
 
     try {
+      // Check if shadow pallet exists
+      if (!this.api.query.shadow) {
+        logger.debug('Shadow pallet not available on this chain');
+        return null;
+      }
+      
       const consent = await this.api.query.shadow.consentRecords(address);
       
       if (consent.isEmpty) {
@@ -308,9 +452,15 @@ export class SubstrateService {
     }
 
     try {
+      // Check if shadow pallet exists
+      if (!this.api.tx.shadow) {
+        logger.error('Shadow pallet not available on this chain');
+        return null;
+      }
+      
       // Create extrinsic
       const extrinsic = this.api.tx.shadow.grantConsent(
-        Array.from(Buffer.from(messageHash)),
+        messageHash, // Pass as string, will be converted by the API
         duration
       );
 
@@ -341,6 +491,12 @@ export class SubstrateService {
     }
 
     try {
+      // Check if shadow pallet exists
+      if (!this.api.tx.shadow) {
+        logger.error('Shadow pallet not available on this chain');
+        return null;
+      }
+      
       // Create extrinsic
       const extrinsic = this.api.tx.shadow.revokeConsent();
 
@@ -479,19 +635,31 @@ export class SubstrateService {
     }
 
     try {
+      // Check if shadow pallet exists
+      if (!this.api.query.shadow) {
+        logger.debug('Shadow pallet not available on this chain');
+        return null;
+      }
+      
       const unsub = await this.api.query.shadow.shadowItems(
         address,
         (items: any) => {
           const itemsArray = items.toJSON() as any[];
-          const shadowItems: ShadowItem[] = itemsArray.map(item => ({
-            id: item.id,
-            cid: Buffer.from(item.cid).toString(),
-            encryptedKey: u8aToHex(item.encryptedKey),
-            timestamp: item.timestamp,
-            source: item.source === 0 ? 'GitHub' : 'Twitter',
-            metadata: Buffer.from(item.metadata).toString(),
-            deleted: false,
-          }));
+          const shadowItems: ShadowItem[] = itemsArray.map(item => {
+            // Convert timestamp from blockchain format to milliseconds
+            const timestampMs = typeof item.timestamp === 'number' 
+              ? item.timestamp * 1000  // Convert seconds to milliseconds
+              : parseInt(item.timestamp.toString()) * 1000;
+            
+            return {
+              id: item.id,
+              content: Buffer.from(item.content).toString('utf8'),
+              timestamp: timestampMs,
+              source: item.source as 'GitHub' | 'Twitter', // Already a string from the enum
+              metadata: Buffer.from(item.metadata).toString(),
+              deleted: item.deleted || false,
+            };
+          });
           callback(shadowItems);
         }
       );
