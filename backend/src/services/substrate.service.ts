@@ -606,6 +606,55 @@ export class SubstrateService {
   }
 
   /**
+   * Get chain height (current block number)
+   */
+  async getChainHeight(): Promise<number> {
+    if (!this.isChainConnected() || !this.api) {
+      return 0;
+    }
+
+    try {
+      const currentBlock = await this.api.query.system.number();
+      return parseInt(currentBlock.toString());
+    } catch (error) {
+      logger.error({ error }, 'Failed to get chain height');
+      return 0;
+    }
+  }
+
+  /**
+   * Get last block time
+   */
+  async getLastBlockTime(): Promise<Date | null> {
+    if (!this.isChainConnected() || !this.api) {
+      return null;
+    }
+
+    try {
+      // Get the latest block hash
+      const lastBlockHash = await this.api.rpc.chain.getBlockHash();
+      // Get the block
+      const block = await this.api.rpc.chain.getBlock(lastBlockHash);
+      
+      // Try to extract timestamp from extrinsics
+      const extrinsics = block.block.extrinsics;
+      for (const ext of extrinsics) {
+        // Check if this is a timestamp.set extrinsic
+        if (ext.method.section === 'timestamp' && ext.method.method === 'set') {
+          const timestamp = ext.args[0];
+          return new Date(parseInt(timestamp.toString()));
+        }
+      }
+      
+      // If no timestamp found, return current time as approximation
+      return new Date();
+    } catch (error) {
+      logger.error({ error }, 'Failed to get last block time');
+      return null;
+    }
+  }
+
+  /**
    * Health check
    */
   async healthCheck(): Promise<boolean> {

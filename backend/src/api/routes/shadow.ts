@@ -1,434 +1,399 @@
 /**
- * Shadow Chain API routes
+ * Shadow Items API Routes
+ * Handles shadow item management and retrieval
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
-import { apiLogger as logger } from '../../utils/logger';
-import { fetcherService } from '../../services/fetcher.service';
-import { substrateService, ShadowItem } from '../../services/substrate.service';
-import { oauthService } from '../../services/oauth.service';
+import { Router, Request, Response } from 'express';
+import { substrateService } from '../../services/substrate.service';
 import { databaseService } from '../../services/database.service';
-import { githubService } from '../../services/github.service';
+import { ipfsService } from '../../services/ipfs.service';
+import { cryptoService } from '../../services/crypto.service';
+import { apiLogger as logger } from '../../utils/logger';
 
-export const shadowRouter = Router();
-
-/**
- * Get shadow items for a user
- */
-shadowRouter.get('/items/:userAddress', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { userAddress } = req.params;
-
-    // Get items from blockchain (if available)
-    let chainItems: ShadowItem[] = [];
-    try {
-      chainItems = await substrateService.getActiveShadowItems(userAddress);
-    } catch (err) {
-      logger.debug({ error: err }, 'Could not get items from blockchain');
-    }
-
-    // If no items on chain, get pending items from database
-    if (chainItems.length === 0) {
-      try {
-        const pendingItems = await databaseService.getPendingItems(userAddress);
-        
-        if (pendingItems.length > 0) {
-          // Convert database items to shadow item format for display
-          const formattedItems = pendingItems.map((item) => ({
-            id: `pending-${item.id}`,
-            content: JSON.stringify(item.content),
-            timestamp: item.timestamp,
-            source: item.source === 'github' ? 'GitHub' : 'Twitter',
-            metadata: JSON.stringify({ url: item.originalUrl }),
-            deleted: false,
-            pending: true // Mark as pending
-          }));
-          
-          logger.info({
-            userAddress,
-            pendingCount: formattedItems.length
-          }, 'Returning pending items from database');
-          
-          return res.json({
-            userAddress,
-            items: formattedItems,
-            total: formattedItems.length,
-            chainConnected: substrateService.isChainConnected(),
-            pending: true, // Indicate these are pending items
-          });
-        }
-      } catch (dbError) {
-        logger.error({ error: dbError }, 'Failed to get pending items from database');
-      }
-    }
-
-    res.json({
-      userAddress,
-      items: chainItems,
-      total: chainItems.length,
-      chainConnected: substrateService.isChainConnected(),
-      pending: false,
-    });
-  } catch (error) {
-    logger.error({ error, userAddress: req.params.userAddress }, 'Failed to get shadow items');
-    next(error);
-  }
-});
+const router = Router();
 
 /**
- * Get sync status
+ * Get all shadow items for a user (both pending and on-chain)
  */
-shadowRouter.get('/sync/status', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/items/:address', async (req: Request, res: Response) => {
   try {
-    const status = fetcherService.getSyncStatus();
-    res.json(status);
-  } catch (error) {
-    logger.error({ error }, 'Failed to get sync status');
-    next(error);
-  }
-});
-
-/**
- * Manually trigger sync for a user
- */
-shadowRouter.post('/sync/:userAddress', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { userAddress } = req.params;
-
-    // Check if user has OAuth token
-    const hasGitHubToken = await oauthService.hasValidGitHubToken(userAddress);
-    if (!hasGitHubToken) {
-      return res.status(400).json({
-        error: 'User must connect GitHub account first'
-      });
+    const { address } = req.params;
+    
+    // Get pending items from database
+    const pendingItems = await databaseService.getPendingItems(address);
+    
+    // Get on-chain items if substrate is connected
+    let chainItems: any[] = [];
+    if (substrateService.isChainConnected()) {
+      const rawItems = await substrateService.getShadowItems(address);
+      
+      // Parse and format chain items
+      chainItems = rawItems.map((item: any) => ({
+        id: item.id,
+        content: item.content,
+        source: item.source,
+        timestamp: parseInt(item.timestamp),
+        metadata: item.metadata,
+        deleted: item.deleted,
+        onChain: true
+      }));
     }
-
-    // Trigger sync
-    const items = await fetcherService.syncUser(userAddress);
-
-    // Also get the current shadow items from blockchain/storage
-    const shadowItems = await substrateService.getActiveShadowItems(userAddress);
-
-    res.json({
-      userAddress,
-      itemsSynced: items.length,
-      processedItems: items,
-      totalItems: shadowItems.length,
-      shadowItems: shadowItems,
-      message: `Successfully synced ${items.length} items`,
-    });
-  } catch (error: any) {
-    logger.error({ error, userAddress: req.params.userAddress }, 'Failed to sync user');
-    if (error.message?.includes('consent')) {
-      res.status(403).json({ error: 'User does not have valid blockchain consent' });
-    } else {
-      next(error);
-    }
-  }
-});
-
-/**
- * Manually trigger sync for all users (admin endpoint)
- */
-shadowRouter.post('/sync/all', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    // In production, this should be protected by admin authentication
-    const items = await fetcherService.runSync();
-
-    res.json({
-      itemsSynced: items.length,
-      items,
-      message: `Successfully synced ${items.length} items across all users`,
-    });
-  } catch (error) {
-    logger.error({ error }, 'Failed to run sync');
-    next(error);
-  }
-});
-
-// Note: IPFS endpoints have been removed since content is stored directly on blockchain
-
-/**
- * Grant consent on blockchain
- */
-shadowRouter.post('/consent', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { userAddress, messageHash, duration } = req.body;
-
-    if (!userAddress || !messageHash) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-
-    const txHash = await substrateService.grantConsent(
-      userAddress,
-      messageHash,
-      duration
-    );
-
-    if (!txHash) {
-      return res.status(503).json({ 
-        error: 'Blockchain not available',
-        message: 'Cannot grant consent while parachain is offline' 
-      });
-    }
-
+    
+    // Combine and sort by timestamp
+    const allItems = [
+      ...pendingItems.map((item: any) => ({
+        ...item,
+        onChain: false
+      })),
+      ...chainItems
+    ].sort((a, b) => b.timestamp - a.timestamp);
+    
     res.json({
       success: true,
-      txHash,
-      message: 'Consent granted successfully',
+      items: allItems,
+      pending: pendingItems.length,
+      onChain: chainItems.length
     });
   } catch (error) {
-    logger.error({ error }, 'Failed to grant consent');
-    next(error);
+    logger.error({ error, address: req.params.address }, 'Failed to get shadow items');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve shadow items'
+    });
   }
 });
 
 /**
- * Revoke consent on blockchain
+ * Get only blockchain items for a user
  */
-shadowRouter.delete('/consent/:userAddress', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/items/:address/blockchain', async (req: Request, res: Response) => {
   try {
-    const { userAddress } = req.params;
-
-    const txHash = await substrateService.revokeConsent(userAddress);
-
-    if (!txHash) {
-      return res.status(503).json({ 
-        error: 'Blockchain not available',
-        message: 'Cannot revoke consent while parachain is offline' 
+    const { address } = req.params;
+    const { page = 1, perPage = 10 } = req.query;
+    
+    const pageNum = parseInt(page as string);
+    const perPageNum = parseInt(perPage as string);
+    
+    if (!substrateService.isChainConnected()) {
+      return res.json({
+        success: true,
+        items: [],
+        total: 0,
+        page: pageNum,
+        perPage: perPageNum,
+        totalPages: 0
       });
     }
-
+    
+    // Get on-chain items
+    const rawItems = await substrateService.getShadowItems(address);
+    
+    // Parse and format chain items
+    const chainItems = rawItems.map((item: any) => ({
+      id: item.id,
+      content: item.content,
+      source: item.source,
+      timestamp: parseInt(item.timestamp),
+      metadata: item.metadata,
+      deleted: item.deleted
+    }));
+    
+    // Sort by timestamp (newest first)
+    chainItems.sort((a: any, b: any) => b.timestamp - a.timestamp);
+    
+    // Pagination
+    const total = chainItems.length;
+    const totalPages = Math.ceil(total / perPageNum);
+    const start = (pageNum - 1) * perPageNum;
+    const paginatedItems = chainItems.slice(start, start + perPageNum);
+    
     res.json({
       success: true,
-      txHash,
-      message: 'Consent revoked successfully',
-    });
-  } catch (error) {
-    logger.error({ error, userAddress: req.params.userAddress }, 'Failed to revoke consent');
-    next(error);
-  }
-});
-
-/**
- * Get consent status
- */
-shadowRouter.get('/consent/:userAddress', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { userAddress } = req.params;
-
-    const hasConsent = await substrateService.hasValidConsent(userAddress);
-    const consentRecord = await substrateService.getConsentRecord(userAddress);
-
-    res.json({
-      userAddress,
-      hasValidConsent: hasConsent,
-      consentRecord,
-      chainConnected: substrateService.isChainConnected(),
-    });
-  } catch (error) {
-    logger.error({ error, userAddress: req.params.userAddress }, 'Failed to check consent');
-    next(error);
-  }
-});
-
-/**
- * Get user's GitHub repositories
- */
-shadowRouter.get('/github/repositories/:userAddress', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { userAddress } = req.params;
-    const { page = '1', perPage = '20' } = req.query;
-
-    // Get user's GitHub token
-    const githubToken = await oauthService.getGitHubToken(userAddress);
-    if (!githubToken) {
-      return res.status(401).json({
-        error: 'GitHub account not connected',
-        message: 'Please connect your GitHub account first'
-      });
-    }
-
-    // Fetch repositories
-    const repositories = await githubService.getUserRepositories(
-      githubToken,
-      parseInt(page as string),
-      parseInt(perPage as string)
-    );
-
-    res.json({
-      repositories,
-      page: parseInt(page as string),
-      perPage: parseInt(perPage as string),
-      total: repositories.length
-    });
-  } catch (error) {
-    logger.error({ error, userAddress: req.params.userAddress }, 'Failed to fetch repositories');
-    next(error);
-  }
-});
-
-/**
- * Get commits for a specific repository
- */
-shadowRouter.get('/github/repositories/:repoFullName/commits', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { repoFullName } = req.params;
-    const { userAddress, page = '1', perPage = '10' } = req.query;
-
-    if (!userAddress) {
-      return res.status(400).json({ error: 'userAddress query parameter is required' });
-    }
-
-    // Get user's GitHub token
-    const githubToken = await oauthService.getGitHubToken(userAddress as string);
-    if (!githubToken) {
-      return res.status(401).json({
-        error: 'GitHub account not connected',
-        message: 'Please connect your GitHub account first'
-      });
-    }
-
-    // Fetch commits
-    const commits = await githubService.getRepositoryCommits(
-      githubToken,
-      repoFullName,
-      parseInt(page as string),
-      parseInt(perPage as string)
-    );
-
-    // Format commits for preview
-    const formattedCommits = await Promise.all(
-      commits.map(async (commit: any) => {
-        const content = await githubService.getFormattedCommit(
-          githubToken,
-          repoFullName,
-          commit.sha
-        );
-        return {
-          sha: commit.sha,
-          message: commit.commit?.message || commit.message || 'No message',
-          author: {
-            name: commit.commit?.author?.name || commit.author?.name || 'Unknown',
-            email: commit.commit?.author?.email || commit.author?.email || 'unknown@example.com',
-            date: commit.commit?.author?.date || commit.author?.date || new Date().toISOString()
-          },
-          content: content,
-          contentSize: JSON.stringify(content).length
-        };
-      })
-    );
-
-    res.json({
-      repository: repoFullName,
-      commits: formattedCommits,
-      page: parseInt(page as string),
-      perPage: parseInt(perPage as string),
-      total: formattedCommits.length
-    });
-  } catch (error) {
-    logger.error({ error, repoFullName: req.params.repoFullName }, 'Failed to fetch commits');
-    next(error);
-  }
-});
-
-/**
- * Submit a single commit as a shadow item
- */
-shadowRouter.post('/github/submit-commit', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { userAddress, repoFullName, commitSha } = req.body;
-
-    if (!userAddress || !repoFullName || !commitSha) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-
-    // Check consent
-    const hasConsent = await substrateService.hasValidConsent(userAddress);
-    if (!hasConsent) {
-      return res.status(403).json({
-        error: 'No valid blockchain consent',
-        message: 'Please grant consent before submitting shadow items'
-      });
-    }
-
-    // Get user's GitHub token
-    const githubToken = await oauthService.getGitHubToken(userAddress);
-    if (!githubToken) {
-      return res.status(401).json({
-        error: 'GitHub account not connected',
-        message: 'Please connect your GitHub account first'
-      });
-    }
-
-    // Get formatted commit content
-    const content = await githubService.getFormattedCommit(
-      githubToken,
-      repoFullName,
-      commitSha
-    );
-
-    // Prepare transaction for user to sign
-    const preparedTx = await substrateService.prepareShadowItemTx(
-      userAddress,
-      JSON.stringify(content),
-      'GitHub',
-      JSON.stringify({ repo: repoFullName, sha: commitSha })
-    );
-
-    if (!preparedTx) {
-      return res.status(503).json({
-        error: 'Blockchain not available',
-        message: 'Cannot submit shadow item while parachain is offline'
-      });
-    }
-
-    res.json({
-      success: true,
-      transaction: preparedTx,
-      content: content,
-      message: 'Transaction prepared for signing'
-    });
-  } catch (error) {
-    logger.error({ error, commitSha: req.body.commitSha }, 'Failed to submit commit');
-    next(error);
-  }
-});
-
-/**
- * Get only blockchain-submitted shadow items (not pending)
- */
-shadowRouter.get('/items/:userAddress/blockchain', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { userAddress } = req.params;
-    const { page = '1', perPage = '20' } = req.query;
-
-    // Get items from blockchain only
-    let chainItems: ShadowItem[] = [];
-    try {
-      chainItems = await substrateService.getActiveShadowItems(userAddress);
-    } catch (err) {
-      logger.debug({ error: err }, 'Could not get items from blockchain');
-    }
-
-    // Implement pagination
-    const startIndex = (parseInt(page as string) - 1) * parseInt(perPage as string);
-    const endIndex = startIndex + parseInt(perPage as string);
-    const paginatedItems = chainItems.slice(startIndex, endIndex);
-
-    res.json({
-      userAddress,
       items: paginatedItems,
-      page: parseInt(page as string),
-      perPage: parseInt(perPage as string),
-      total: chainItems.length,
-      totalPages: Math.ceil(chainItems.length / parseInt(perPage as string)),
-      chainConnected: substrateService.isChainConnected()
+      total,
+      page: pageNum,
+      perPage: perPageNum,
+      totalPages
     });
   } catch (error) {
-    logger.error({ error, userAddress: req.params.userAddress }, 'Failed to get blockchain shadow items');
-    next(error);
+    logger.error({ error, address: req.params.address }, 'Failed to get blockchain items');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve blockchain items',
+      items: [],
+      total: 0
+    });
   }
 });
 
-// Note: Decrypt endpoint has been removed since encryption is no longer used
+/**
+ * Get pending shadow items for a user (not yet on blockchain)
+ */
+router.get('/pending/:address', async (req: Request, res: Response) => {
+  try {
+    const { address } = req.params;
+    
+    const pendingItems = await databaseService.getPendingItems(address);
+    
+    res.json({
+      success: true,
+      items: pendingItems
+    });
+  } catch (error) {
+    logger.error({ error, address: req.params.address }, 'Failed to get pending items');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve pending items'
+    });
+  }
+});
+
+/**
+ * Delete a pending shadow item
+ */
+router.delete('/pending/:address/:itemId', async (req: Request, res: Response) => {
+  try {
+    const { address, itemId } = req.params;
+    
+    const deleted = await databaseService.deletePendingItem(address, parseInt(itemId));
+    
+    if (deleted) {
+      res.json({
+        success: true,
+        message: 'Pending item deleted'
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Pending item not found'
+      });
+    }
+  } catch (error) {
+    logger.error({ error, params: req.params }, 'Failed to delete pending item');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete pending item'
+    });
+  }
+});
+
+/**
+ * Get content from IPFS by CID
+ * This endpoint retrieves encrypted content from IPFS for client-side decryption
+ */
+router.get('/ipfs/:cid', async (req: Request, res: Response) => {
+  try {
+    const { cid } = req.params;
+    
+    // Validate CID format
+    if (!ipfsService.isValidCID(cid)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid CID format'
+      });
+    }
+    
+    // Check if IPFS is connected
+    if (!ipfsService.isConnected()) {
+      await ipfsService.connect();
+    }
+    
+    // Retrieve encrypted content from IPFS
+    const encryptedData = await ipfsService.retrieveEncrypted(cid);
+    
+    // Return the encrypted data for client-side decryption
+    res.json({
+      success: true,
+      cid,
+      ciphertext: encryptedData.ciphertext.toString('hex'),
+      nonce: encryptedData.nonce.toString('hex'),
+      metadata: encryptedData.metadata
+    });
+    
+  } catch (error) {
+    logger.error({ error, cid: req.params.cid }, 'Failed to retrieve content from IPFS');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve IPFS content'
+    });
+  }
+});
+
+/**
+ * Check if user has encryption key registered
+ */
+router.get('/encryption-status/:address', async (req: Request, res: Response) => {
+  try {
+    const { address } = req.params;
+    
+    const hasKey = await databaseService.hasUserEncryptionKey(address);
+    const userKey = hasKey ? await databaseService.getUserEncryptionKey(address) : null;
+    
+    res.json({
+      success: true,
+      hasEncryptionKey: hasKey,
+      publicKey: userKey?.publicKey || null,
+      keyCreatedAt: userKey?.createdAt || null
+    });
+  } catch (error) {
+    logger.error({ error, address: req.params.address }, 'Failed to check encryption status');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check encryption status'
+    });
+  }
+});
+
+/**
+ * Register user's encryption public key
+ */
+router.post('/register-key', async (req: Request, res: Response) => {
+  try {
+    const { address, publicKey, signedMessage, deviceId, label } = req.body;
+    
+    // Validate public key format
+    if (!cryptoService.validatePublicKey(publicKey)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid public key format'
+      });
+    }
+    
+    // Store the encryption key
+    const storedKey = await databaseService.storeUserEncryptionKey(
+      address,
+      publicKey,
+      signedMessage,
+      deviceId,
+      label
+    );
+    
+    logger.info({ address, deviceId, label }, 'Encryption key registered');
+    
+    res.json({
+      success: true,
+      message: 'Encryption key registered successfully',
+      keyId: storedKey.id
+    });
+  } catch (error) {
+    logger.error({ error, body: req.body }, 'Failed to register encryption key');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to register encryption key'
+    });
+  }
+});
+
+/**
+ * Get user's active encryption key
+ */
+router.get('/encryption-key/:address', async (req: Request, res: Response) => {
+  try {
+    const { address } = req.params;
+    
+    const userKey = await databaseService.getUserEncryptionKey(address);
+    
+    if (!userKey) {
+      return res.status(404).json({
+        success: false,
+        error: 'No encryption key found for user'
+      });
+    }
+    
+    res.json({
+      success: true,
+      publicKey: userKey.publicKey,
+      createdAt: userKey.createdAt,
+      deviceId: userKey.deviceId,
+      label: userKey.label
+    });
+  } catch (error) {
+    logger.error({ error, address: req.params.address }, 'Failed to get encryption key');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve encryption key'
+    });
+  }
+});
+
+/**
+ * Rotate user's encryption key
+ */
+router.post('/rotate-key', async (req: Request, res: Response) => {
+  try {
+    const { address, newPublicKey, signedMessage, reason } = req.body;
+    
+    // Validate new public key format
+    if (!cryptoService.validatePublicKey(newPublicKey)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid public key format'
+      });
+    }
+    
+    // Rotate the key
+    const newKey = await databaseService.rotateUserEncryptionKey(
+      address,
+      newPublicKey,
+      signedMessage,
+      reason
+    );
+    
+    logger.info({ address, reason }, 'Encryption key rotated');
+    
+    res.json({
+      success: true,
+      message: 'Encryption key rotated successfully',
+      keyId: newKey.id
+    });
+  } catch (error) {
+    logger.error({ error, body: req.body }, 'Failed to rotate encryption key');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to rotate encryption key'
+    });
+  }
+});
+
+/**
+ * Test encryption for a user
+ */
+router.post('/test-encryption', async (req: Request, res: Response) => {
+  try {
+    const { address, testData } = req.body;
+    
+    // Get user's encryption key
+    const userKey = await databaseService.getUserEncryptionKey(address);
+    
+    if (!userKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'User has no encryption key registered'
+      });
+    }
+    
+    // Encrypt test data
+    const encrypted = await cryptoService.encryptForUser(
+      testData || 'Test encryption data',
+      userKey.publicKey
+    );
+    
+    res.json({
+      success: true,
+      encrypted: {
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        encryptedKey: encrypted.encryptedKey
+      },
+      message: 'Encryption test successful. Use your private key to decrypt.'
+    });
+  } catch (error) {
+    logger.error({ error, address: req.body.address }, 'Encryption test failed');
+    res.status(500).json({
+      success: false,
+      error: 'Encryption test failed'
+    });
+  }
+});
+
+export default router;

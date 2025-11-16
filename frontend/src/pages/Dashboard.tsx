@@ -9,6 +9,7 @@ import { BlockchainShadowItems } from '../components/BlockchainShadowItems';
 import { IdentityCard } from '../components/IdentityCard';
 import { ActivityFeed } from '../components/ActivityFeed';
 import { ChainVisualizer } from '../components/ChainVisualizer';
+import { EncryptionKeySetup } from '../components/EncryptionKeySetup';
 import AccountSwitcher from '../components/AccountSwitcher';
 import { getShadowItems, getConsentRecord } from '../services/polkadot';
 import {
@@ -18,6 +19,7 @@ import {
   submitShadowItemWithUserSigning
 } from '../services/transactions';
 import { useNavigate } from 'react-router-dom';
+import { cryptoService } from '../services/crypto';
 
 // Polyfill for Buffer in browser
 const encodeToHex = (str: string): string => {
@@ -46,6 +48,8 @@ const Dashboard: React.FC = () => {
   const [signingProgress, setSigningProgress] = useState({ current: 0, total: 0 });
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeView, setActiveView] = useState<'activity' | 'repositories' | 'chain' | 'connections'>('activity');
+  const [hasEncryptionKey, setHasEncryptionKey] = useState(false);
+  const [checkingEncryption, setCheckingEncryption] = useState(true);
 
   // Check for consent record
   const { data: consentRecord } = useQuery({
@@ -56,6 +60,48 @@ const Dashboard: React.FC = () => {
     },
     enabled: !!selectedAccount,
   });
+
+  // Check for encryption key and initialize if needed
+  useEffect(() => {
+    const checkEncryptionKey = async () => {
+      if (!selectedAccount) {
+        setHasEncryptionKey(false);
+        setCheckingEncryption(false);
+        return;
+      }
+
+      setCheckingEncryption(true);
+      try {
+        // Check if user has encryption key registered
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+        const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+        const response = await axios.get(
+          `${baseUrl}/api/auth/encryption-key/${selectedAccount.address}`
+        );
+        
+        const hasKey = response.data.hasEncryptionKey;
+        setHasEncryptionKey(hasKey);
+
+        // Try to load and unlock stored keys automatically
+        if (hasKey) {
+          const storedKeys = await cryptoService.loadStoredKeys();
+          if (storedKeys && !storedKeys.unlocked) {
+            // Keys exist but are locked, we'll show UI to unlock them
+            console.log('Encryption keys found but locked');
+          } else if (storedKeys && storedKeys.unlocked) {
+            console.log('Encryption keys loaded and unlocked');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking encryption key:', error);
+        setHasEncryptionKey(false);
+      } finally {
+        setCheckingEncryption(false);
+      }
+    };
+
+    checkEncryptionKey();
+  }, [selectedAccount]);
 
   const { data: items, isLoading, refetch } = useQuery({
     queryKey: ['shadow-items', selectedAccount?.address],
@@ -270,6 +316,19 @@ const Dashboard: React.FC = () => {
 
         {/* Main Content Area */}
         <main className="p-8 overflow-y-auto">
+          {/* Encryption Key Setup */}
+          {!checkingEncryption && !hasEncryptionKey && consentRecord && (
+            <div className="mb-8">
+              <EncryptionKeySetup
+                onComplete={() => {
+                  setHasEncryptionKey(true);
+                  toast.success('Encryption keys setup successfully!');
+                  refetch(); // Refresh data after key setup
+                }}
+              />
+            </div>
+          )}
+
           {/* Authorization Banner */}
           {!consentRecord && (
             <div className="glass-card mb-8 text-center border-2 border-dot-primary p-8 animate-slide-up">
@@ -297,13 +356,82 @@ const Dashboard: React.FC = () => {
           {/* Dynamic Content Based on Active View */}
           {activeView === 'activity' && <ActivityFeed />}
           {activeView === 'repositories' && <RepositoryList />}
-          {activeView === 'chain' && <BlockchainShadowItems itemsPerPage={15} />}
+          {activeView === 'chain' && (
+            <BlockchainShadowItems
+              itemsPerPage={15}
+              hasEncryptionKey={hasEncryptionKey}
+            />
+          )}
           {activeView === 'connections' && <AccountConnections onConnectionChange={refetch} />}
         </main>
 
         {/* Right Panel */}
         <aside className="bg-glass-dark backdrop-blur-2xl border-l border-glass-light p-6 space-y-6 overflow-y-auto">
           <IdentityCard />
+          
+          {/* Encryption Status Card */}
+          {hasEncryptionKey && (
+            <div className="glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display text-white">Encryption</h3>
+                <div className="badge badge-verified">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  Active
+                </div>
+              </div>
+              <p className="text-sm text-gray-400 mb-4">
+                Your shadow items are encrypted with your personal key
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    const exported = await cryptoService.exportKeys();
+                    if (exported) {
+                      const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'shadowchain-keys.json';
+                      a.click();
+                      toast.success('Keys exported successfully');
+                    }
+                  }}
+                  className="btn-ghost text-xs flex-1"
+                >
+                  Export Keys
+                </button>
+                <button
+                  onClick={() => {
+                    // Open import dialog
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = async (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (file) {
+                        const text = await file.text();
+                        const keys = JSON.parse(text);
+                        const success = await cryptoService.importKeys(keys);
+                        if (success) {
+                          setHasEncryptionKey(true);
+                          toast.success('Keys imported successfully');
+                        } else {
+                          toast.error('Failed to import keys');
+                        }
+                      }
+                    };
+                    input.click();
+                  }}
+                  className="btn-ghost text-xs flex-1"
+                >
+                  Import Keys
+                </button>
+              </div>
+            </div>
+          )}
+          
           <ChainVisualizer />
         </aside>
       </div>

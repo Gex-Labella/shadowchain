@@ -38,7 +38,7 @@ module.exports = {
         
         // Web2 source colors
         'source': {
-          'github': '#9945FF',     // Purple (Solana-like)
+          'github': '#9945FF',     // Purple 
           'twitter': '#1DA1F2',    // Twitter blue
           'discord': '#5865F2',    // Discord purple
           'linkedin': '#0A66C2',   // LinkedIn blue

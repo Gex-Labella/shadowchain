@@ -1,14 +1,16 @@
 /**
  * Authentication routes for OAuth flows
- * 
+ *
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { oauthService } from '../../services/oauth.service';
 import { substrateService } from '../../services/substrate.service';
-import { fetcherService } from '../../services/fetcher.service';
 import { databaseService } from '../../services/database.service';
+import { cryptoService } from '../../services/crypto.service';
+import { fetcherService } from '../../services/fetcher.service';
 import { authLogger as logger } from '../../utils/logger';
+import { cryptoWaitReady, signatureVerify } from '@polkadot/util-crypto';
 
 export const authRouter = Router();
 
@@ -185,4 +187,186 @@ authRouter.get('/chain/status', async (req: Request, res: Response, next: NextFu
   }
 });
 
-// Note: Key registration endpoints have been removed since encryption is no longer used
+/**
+ * Check user consent status on blockchain
+ */
+authRouter.get('/consent/:address', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { address } = req.params;
+    
+    const hasConsent = await substrateService.hasValidConsent(address);
+    const consentRecord = await substrateService.getConsentRecord(address);
+    
+    res.json({
+      address,
+      hasValidConsent: hasConsent,
+      consentRecord,
+      chainConnected: substrateService.isChainConnected()
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to check consent status');
+    next(error);
+  }
+});
+
+/**
+ * Register user encryption public key
+ */
+authRouter.post('/register-encryption-key', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userAddress, publicKey, signedMessage, deviceId, label } = req.body;
+    
+    if (!userAddress || !publicKey) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Validate public key format
+    if (!cryptoService.validatePublicKey(publicKey)) {
+      return res.status(400).json({ error: 'Invalid public key format' });
+    }
+    
+    // Verify the signed message with the user's Polkadot account
+    if (signedMessage) {
+      try {
+        await cryptoWaitReady();
+        const message = cryptoService.createKeyOwnershipMessage(userAddress, publicKey);
+        const { isValid } = signatureVerify(message, signedMessage, userAddress);
+        
+        if (!isValid) {
+          return res.status(401).json({ error: 'Invalid signature - key ownership verification failed' });
+        }
+        
+        logger.info({
+          userAddress,
+          publicKey: publicKey.substring(0, 16) + '...',
+          signatureValid: true
+        }, 'Key ownership verified via signature');
+      } catch (sigError) {
+        logger.error({ error: sigError, userAddress }, 'Signature verification failed');
+        return res.status(401).json({ error: 'Signature verification failed' });
+      }
+    } else {
+      // In development/testing, allow registration without signature
+      // In production, this should be enforced
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(400).json({ error: 'Signature required for key registration' });
+      }
+      logger.warn({
+        userAddress,
+        publicKey: publicKey.substring(0, 16) + '...'
+      }, 'Key registered without signature verification (dev mode)');
+    }
+    
+    // Store the encryption key
+    const storedKey = await databaseService.storeUserEncryptionKey(
+      userAddress,
+      publicKey,
+      signedMessage,
+      deviceId,
+      label
+    );
+    
+    logger.info({
+      userAddress,
+      deviceId,
+      label
+    }, 'User encryption key registered');
+    
+    res.json({
+      success: true,
+      keyId: storedKey.id,
+      message: 'Encryption key registered successfully'
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to register encryption key');
+    next(error);
+  }
+});
+
+/**
+ * Get user encryption key status
+ */
+authRouter.get('/encryption-key/:address', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { address } = req.params;
+    
+    const hasKey = await databaseService.hasUserEncryptionKey(address);
+    const key = await databaseService.getUserEncryptionKey(address);
+    
+    res.json({
+      address,
+      hasEncryptionKey: hasKey,
+      publicKey: key?.publicKey,
+      isActive: key?.isActive,
+      createdAt: key?.createdAt
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to get encryption key status');
+    next(error);
+  }
+});
+
+/**
+ * Rotate user encryption key
+ */
+authRouter.post('/rotate-encryption-key', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userAddress, newPublicKey, signedMessage, reason } = req.body;
+    
+    if (!userAddress || !newPublicKey) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Validate public key format
+    if (!cryptoService.validatePublicKey(newPublicKey)) {
+      return res.status(400).json({ error: 'Invalid public key format' });
+    }
+    
+    // Rotate the key
+    const newKey = await databaseService.rotateUserEncryptionKey(
+      userAddress,
+      newPublicKey,
+      signedMessage,
+      reason
+    );
+    
+    logger.info({
+      userAddress,
+      reason
+    }, 'User encryption key rotated');
+    
+    res.json({
+      success: true,
+      keyId: newKey.id,
+      message: 'Encryption key rotated successfully'
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to rotate encryption key');
+    next(error);
+  }
+});
+
+/**
+ * Revoke user encryption key
+ */
+authRouter.delete('/encryption-key/:address', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { address } = req.params;
+    const { reason } = req.body;
+    
+    await databaseService.revokeUserEncryptionKey(address, reason);
+    
+    logger.info({
+      userAddress: address,
+      reason
+    }, 'User encryption key revoked');
+    
+    res.json({
+      success: true,
+      message: 'Encryption key revoked successfully'
+    });
+  } catch (error) {
+    logger.error({ error }, 'Failed to revoke encryption key');
+    next(error);
+  }
+});

@@ -10,6 +10,8 @@ import { twitterService, TwitterContent } from './twitter.service';
 import { substrateService } from './substrate.service';
 import { oauthService } from './oauth.service';
 import { databaseService } from './database.service';
+import { cryptoService } from './crypto.service';
+import { ipfsService } from './ipfs.service';
 
 type ContentItem = GitHubContent | TwitterContent;
 
@@ -18,6 +20,8 @@ export interface ProcessedItem {
   originalUrl: string;
   content: any; // The raw content to be stored
   timestamp: number;
+  cid?: string; // IPFS CID for encrypted content
+  encryptedKey?: string; // Encrypted symmetric key
   txData?: { method: string; args: any[] }; // Unsigned transaction data for user signing
 }
 
@@ -28,7 +32,8 @@ export class FetcherService {
   private servicesAvailable = {
     github: false,
     twitter: false,
-    substrate: false
+    substrate: false,
+    ipfs: false
   };
 
   /**
@@ -100,6 +105,16 @@ export class FetcherService {
     } catch (error) {
       logger.warn({ error }, 'Substrate connection failed - will run without blockchain');
       this.servicesAvailable.substrate = false;
+    }
+
+    // Try to connect to IPFS
+    try {
+      await ipfsService.connect();
+      this.servicesAvailable.ipfs = true;
+      logger.info('IPFS connection successful');
+    } catch (error) {
+      logger.warn({ error }, 'IPFS connection failed - will run without encryption');
+      this.servicesAvailable.ipfs = false;
     }
 
     // Validate API tokens
@@ -258,7 +273,7 @@ export class FetcherService {
 
   /**
    * Process a single content item for blockchain storage
-   * No encryption or IPFS - just prepare transaction with raw content
+   * Encrypts content and stores on IPFS if encryption is available
    */
   private async processContentItem(
     content: ContentItem,
@@ -274,18 +289,71 @@ export class FetcherService {
       logger.debug({
         userAddress,
         source: content.source
-      }, 'Processing content item for direct blockchain storage');
+      }, 'Processing content item');
 
-      // Prepare transaction with raw content for blockchain
+      let cid: string | undefined;
+      let encryptedKey: string | undefined;
+      let contentToStore = JSON.stringify(content);
+
+      // Check if encryption is available and user has encryption key
+      if (this.servicesAvailable.ipfs) {
+        const userKey = await databaseService.getUserEncryptionKey(userAddress);
+        
+        if (userKey) {
+          try {
+            logger.info({
+              userAddress,
+              source: content.source
+            }, 'Encrypting content for user');
+
+            // Encrypt content for the user
+            const encrypted = await cryptoService.encryptForUser(
+              contentToStore,
+              userKey.publicKey
+            );
+
+            // Upload encrypted content to IPFS
+            const ipfsResult = await ipfsService.uploadEncrypted(
+              Buffer.from(encrypted.ciphertext, 'hex'),
+              Buffer.from(encrypted.nonce, 'hex')
+            );
+
+            cid = ipfsResult.cid;
+            encryptedKey = encrypted.encryptedKey;
+
+            logger.info({
+              userAddress,
+              source: content.source,
+              cid,
+              encryptedSize: encrypted.ciphertext.length
+            }, 'Content encrypted and uploaded to IPFS');
+
+            // For encrypted content, we store CID + encrypted key on blockchain
+            contentToStore = cid;
+          } catch (encryptError) {
+            logger.error({ error: encryptError }, 'Failed to encrypt content, falling back to unencrypted');
+            // Fall back to unencrypted storage
+          }
+        } else {
+          logger.debug({
+            userAddress,
+            source: content.source
+          }, 'User has no encryption key, storing unencrypted');
+        }
+      }
+
+      // Prepare transaction for blockchain
       let txData: { method: string; args: any[] } | undefined;
       if (this.servicesAvailable.substrate) {
         const preparedTx = await substrateService.prepareShadowItemTx(
           userAddress,
-          JSON.stringify(content), // Store the entire content as JSON
+          contentToStore,
           content.source === 'github' ? 'GitHub' : 'Twitter',
           JSON.stringify({
             timestamp: content.timestamp,
-            url: content.url
+            url: content.url,
+            encrypted: !!cid,
+            encryptedKey: encryptedKey
           })
         );
         txData = preparedTx || undefined;
@@ -303,14 +371,17 @@ export class FetcherService {
         originalUrl: content.url,
         content: content,
         timestamp: content.timestamp,
+        cid,
+        encryptedKey,
         txData,
       };
 
       logger.info({
         userAddress,
         source: content.source,
-        hasTxData: !!txData
-      }, 'Content item processed successfully for direct blockchain storage');
+        hasTxData: !!txData,
+        encrypted: !!cid
+      }, 'Content item processed successfully');
 
       return processed;
     } catch (error) {

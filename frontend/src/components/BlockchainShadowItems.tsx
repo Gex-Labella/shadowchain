@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useWalletStore } from '../store/wallet';
+import { cryptoService } from '../services/crypto';
+import { toast } from 'react-toastify';
 
 interface ShadowItem {
   id: string;
@@ -12,16 +14,25 @@ interface ShadowItem {
   deleted: boolean;
 }
 
-interface BlockchainShadowItemsProps {
-  itemsPerPage?: number;
+interface DecryptedItem extends ShadowItem {
+  decrypted?: boolean;
+  decryptedContent?: any;
 }
 
-export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({ 
-  itemsPerPage = 10 
+interface BlockchainShadowItemsProps {
+  itemsPerPage?: number;
+  hasEncryptionKey?: boolean;
+}
+
+export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
+  itemsPerPage = 10,
+  hasEncryptionKey = false
 }) => {
   const { selectedAccount } = useWalletStore();
   const [currentPage, setCurrentPage] = useState(1);
   const [filterSource, setFilterSource] = useState<'all' | 'GitHub' | 'Twitter'>('all');
+  const [decryptedItems, setDecryptedItems] = useState<Map<string, any>>(new Map());
+  const [decryptionStatus, setDecryptionStatus] = useState<'idle' | 'decrypting' | 'complete'>('idle');
 
   // Fetch only blockchain items
   const { data: response, isLoading, error } = useQuery({
@@ -47,7 +58,96 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
     enabled: !!selectedAccount,
   });
 
-  // Parse content from blockchain
+  // Attempt to decrypt items when they arrive and user has encryption key
+  useEffect(() => {
+    const decryptItems = async () => {
+      if (!response?.items || !hasEncryptionKey) return;
+      
+      const currentKeyPair = cryptoService.getCurrentKeyPair();
+      if (!currentKeyPair) {
+        // Try to auto-unlock with stored password or prompt user
+        return;
+      }
+
+      setDecryptionStatus('decrypting');
+      const newDecryptedItems = new Map<string, any>();
+
+      for (const item of response.items) {
+        try {
+          // Check if content is a CID (IPFS hash)
+          if (item.content && item.content.startsWith('Qm') || item.content.startsWith('bafy')) {
+            // This is an IPFS CID - fetch and decrypt the content
+            const metadata = parseMetadata(item.metadata);
+            
+            if (metadata?.encrypted && metadata?.encryptedKey) {
+              try {
+                // Fetch encrypted content from IPFS
+                const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+                const baseUrl = apiUrl.replace(/\/api\/?$/, '');
+                
+                const ipfsResponse = await axios.get(
+                  `${baseUrl}/api/shadow/ipfs/${item.content}`
+                );
+                
+                if (ipfsResponse.data) {
+                  const { ciphertext, nonce } = ipfsResponse.data;
+                  
+                  // Decrypt the content
+                  const decrypted = await cryptoService.decryptShadowItem(
+                    ciphertext,
+                    nonce,
+                    metadata.encryptedKey
+                  );
+                  
+                  if (decrypted) {
+                    newDecryptedItems.set(item.id, decrypted);
+                  }
+                }
+              } catch (err) {
+                console.error('Failed to decrypt item:', item.id, err);
+              }
+            }
+          } else {
+            // Try to parse as regular content
+            const parsed = parseContent(item as ShadowItem);
+            if (parsed) {
+              newDecryptedItems.set(item.id, parsed);
+            }
+          }
+        } catch (err) {
+          console.error('Error processing item:', item.id, err);
+        }
+      }
+
+      setDecryptedItems(newDecryptedItems);
+      setDecryptionStatus('complete');
+    };
+
+    decryptItems();
+  }, [response?.items, hasEncryptionKey]);
+
+  // Parse metadata to check for encryption info
+  const parseMetadata = (metadata: string): any => {
+    try {
+      if (!metadata) return null;
+      
+      let metadataObj: any;
+      if (metadata.startsWith('0x')) {
+        const hexString = metadata.slice(2);
+        const bytes = new Uint8Array(hexString.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+        const jsonStr = new TextDecoder().decode(bytes);
+        metadataObj = JSON.parse(jsonStr);
+      } else {
+        metadataObj = JSON.parse(metadata);
+      }
+      
+      return metadataObj;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  // Parse content from blockchain (for unencrypted items)
   const parseContent = (item: ShadowItem) => {
     try {
       let content: any;
@@ -57,6 +157,19 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
         const bytes = new Uint8Array(hexString.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
         const jsonStr = new TextDecoder().decode(bytes);
         content = JSON.parse(jsonStr);
+      } else if (item.content.startsWith('Qm') || item.content.startsWith('bafy')) {
+        // This is an IPFS CID, check if we have decrypted content
+        const decrypted = decryptedItems.get(item.id);
+        if (decrypted) {
+          return decrypted;
+        }
+        // Return placeholder for encrypted content
+        return {
+          source: item.source,
+          body: '🔒 Encrypted content (CID: ' + item.content.substring(0, 8) + '...)',
+          timestamp: item.timestamp,
+          encrypted: true
+        };
       } else {
         content = JSON.parse(item.content);
       }
@@ -74,16 +187,9 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
       let url = content.url || '';
       
       if (!url && item.metadata) {
-        try {
-          if (item.metadata.startsWith('0x')) {
-            const hexString = item.metadata.slice(2);
-            const bytes = new Uint8Array(hexString.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
-            const jsonStr = new TextDecoder().decode(bytes);
-            const metadata = JSON.parse(jsonStr);
-            url = metadata.url || '';
-          }
-        } catch (e) {
-          console.error('Failed to parse metadata:', e);
+        const metadata = parseMetadata(item.metadata);
+        if (metadata?.url) {
+          url = metadata.url;
         }
       }
 
@@ -198,6 +304,18 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
           }}>
             {response?.total || 0} CONFIRMED
           </span>
+          {decryptionStatus === 'decrypting' && (
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.75rem',
+              color: 'var(--signal-blue)',
+              padding: '0.25rem 0.75rem',
+              border: '1px solid var(--signal-blue)',
+              borderRadius: 'var(--radius-sharp)'
+            }}>
+              🔓 DECRYPTING...
+            </span>
+          )}
         </div>
 
         {/* Source filter */}
@@ -254,7 +372,10 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
               >
                 {/* Content */}
                 {(() => {
-                  const content = parseContent(item);
+                  // First check if we have decrypted content
+                  const decrypted = decryptedItems.get(item.id);
+                  const content = decrypted || parseContent(item);
+                  
                   if (!content) return null;
                   
                   return (
@@ -274,7 +395,7 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
                             color: getSourceColor(item.source),
                             letterSpacing: '0.1em'
                           }}>
-                            [{content.source.toUpperCase()}]
+                            [{content.source?.toUpperCase() || 'UNKNOWN'}]
                           </span>
                           <span style={{
                             fontFamily: 'var(--font-mono)',
@@ -289,12 +410,12 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
                         <div style={{
                           fontFamily: 'var(--font-mono)',
                           fontSize: '0.688rem',
-                          color: 'var(--corrupt-green)',
+                          color: decrypted ? 'var(--signal-blue)' : 'var(--corrupt-green)',
                           padding: '0.25rem 0.5rem',
-                          border: '1px solid var(--corrupt-green)',
+                          border: `1px solid ${decrypted ? 'var(--signal-blue)' : 'var(--corrupt-green)'}`,
                           borderRadius: 'var(--radius-sharp)'
                         }}>
-                          CONFIRMED
+                          {decrypted ? '🔓 DECRYPTED' : content.encrypted ? '🔒 ENCRYPTED' : 'CONFIRMED'}
                         </div>
                       </div>
 
@@ -307,7 +428,7 @@ export const BlockchainShadowItems: React.FC<BlockchainShadowItemsProps> = ({
                         fontSize: '0.813rem'
                       }}>
                         <div style={{ color: 'var(--ghost-white)', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
-                          {content.body}
+                          {content.content || content.body}
                         </div>
                         {content.author && (
                           <div style={{

@@ -9,7 +9,7 @@ import rateLimit from 'express-rate-limit';
 import config from '../config';
 import { apiLogger as logger } from '../utils/logger';
 import { healthRouter } from './routes/health';
-import { shadowRouter } from './routes/shadow';
+import shadowRouter from './routes/shadow';
 import { authRouter } from './routes/auth';
 import { transactionRouter } from './routes/transactions';
 import { errorHandler } from './middleware/error-handler';
