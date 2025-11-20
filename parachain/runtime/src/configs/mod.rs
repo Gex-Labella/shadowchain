@@ -318,19 +318,22 @@ impl pallet_collator_selection::Config for Runtime {
 
 parameter_types! {
 	pub const MaxItemsPerAccount: u32 = 100;
-	pub const MaxCidLength: u32 = 100;
-	pub const MaxKeyLength: u32 = 512;
+	pub const MaxCidLength: u32 = 64;        // For IPFS CIDs (typically 46 chars for CIDv1)
+	pub const MaxKeyLength: u32 = 512;       // For encrypted symmetric keys
+	pub const MaxSourceLength: u32 = 32;     // For source names like "GitHub", "Twitter"
 	pub const MaxMetadataLength: u32 = 256;
 	pub const MaxMessageHashLength: u32 = 64;
 }
 
-/// Configure the Shadow pallet for storing encrypted Web2 activity metadata.
+/// Configure the Shadow pallet for storing Web2 activity data with encryption.
+/// Content is stored on IPFS, only CID and encrypted keys are stored on-chain.
 impl pallet_shadow::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_shadow::weights::SubstrateWeight<Runtime>;
 	type MaxItemsPerAccount = MaxItemsPerAccount;
 	type MaxCidLength = MaxCidLength;
 	type MaxKeyLength = MaxKeyLength;
+	type MaxSourceLength = MaxSourceLength;
 	type MaxMetadataLength = MaxMetadataLength;
 	type MaxMessageHashLength = MaxMessageHashLength;
 }

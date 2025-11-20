@@ -43,13 +43,17 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxItemsPerAccount: Get<u32>;
 		
-		/// Maximum length for CID
+		/// Maximum length for IPFS CID
 		#[pallet::constant]
 		type MaxCidLength: Get<u32>;
 		
 		/// Maximum length for encrypted key
 		#[pallet::constant]
 		type MaxKeyLength: Get<u32>;
+
+		/// Maximum length for source identifier
+		#[pallet::constant]
+		type MaxSourceLength: Get<u32>;
 		
 		/// Maximum length for metadata
 		#[pallet::constant]
@@ -63,6 +67,7 @@ pub mod pallet {
 	/// Type aliases for bounded vectors
 	pub type BoundedCid<T> = BoundedVec<u8, <T as Config>::MaxCidLength>;
 	pub type BoundedKey<T> = BoundedVec<u8, <T as Config>::MaxKeyLength>;
+	pub type BoundedSource<T> = BoundedVec<u8, <T as Config>::MaxSourceLength>;
 	pub type BoundedMetadata<T> = BoundedVec<u8, <T as Config>::MaxMetadataLength>;
 	pub type BoundedMessageHash<T> = BoundedVec<u8, <T as Config>::MaxMessageHashLength>;
 
@@ -72,14 +77,14 @@ pub mod pallet {
 	pub struct ShadowItem<T: Config> {
 		/// Unique identifier for the item.
 		pub id: [u8; 32],  // Fixed size for hash output
-		/// IPFS content identifier.
+		/// IPFS CID where encrypted content is stored.
 		pub cid: BoundedCid<T>,
-		/// Encrypted symmetric key.
+		/// Encrypted symmetric key (encrypted with user's public key).
 		pub encrypted_key: BoundedKey<T>,
 		/// Timestamp when the item was stored.
 		pub timestamp: u64,
-		/// Source of the content (0 = GitHub, 1 = Twitter).
-		pub source: u8,
+		/// Source of the content (e.g., "GitHub", "Twitter").
+		pub source: BoundedSource<T>,
 		/// Additional metadata.
 		pub metadata: BoundedMetadata<T>,
 	}
@@ -137,6 +142,8 @@ pub mod pallet {
 		CidTooLong,
 		/// The encrypted key is too long.
 		KeyTooLong,
+		/// The source is too long.
+		SourceTooLong,
 		/// The metadata is too long.
 		MetadataTooLong,
 		/// The account has too many items.
@@ -159,9 +166,9 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Submit a new shadow item to the chain.
 		///
-		/// - `cid`: The IPFS content identifier for the encrypted data.
-		/// - `encrypted_key`: The encrypted symmetric key for decrypting the content.
-		/// - `source`: The source of the content (0 = GitHub, 1 = Twitter).
+		/// - `cid`: The IPFS CID where encrypted content is stored.
+		/// - `encrypted_key`: The encrypted symmetric key.
+		/// - `source`: The source of the content (e.g., "GitHub", "Twitter").
 		/// - `metadata`: Additional metadata about the item.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::submit_shadow_item())]
@@ -169,7 +176,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			cid: Vec<u8>,
 			encrypted_key: Vec<u8>,
-			source: u8,
+			source: Vec<u8>,
 			metadata: Vec<u8>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -180,8 +187,8 @@ pub mod pallet {
 			// Validate inputs - convert lengths to u32 for comparison
 			ensure!(cid.len() as u32 <= T::MaxCidLength::get(), Error::<T>::CidTooLong);
 			ensure!(encrypted_key.len() as u32 <= T::MaxKeyLength::get(), Error::<T>::KeyTooLong);
+			ensure!(source.len() as u32 <= T::MaxSourceLength::get(), Error::<T>::SourceTooLong);
 			ensure!(metadata.len() as u32 <= T::MaxMetadataLength::get(), Error::<T>::MetadataTooLong);
-			ensure!(source <= 1, Error::<T>::InvalidSource);
 
 			// Generate unique ID for this item
 			let nonce = frame_system::Pallet::<T>::account_nonce(&who);
@@ -192,6 +199,8 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::CidTooLong)?;
 			let bounded_key = BoundedKey::<T>::try_from(encrypted_key)
 				.map_err(|_| Error::<T>::KeyTooLong)?;
+			let bounded_source = BoundedSource::<T>::try_from(source)
+				.map_err(|_| Error::<T>::SourceTooLong)?;
 			let bounded_metadata = BoundedMetadata::<T>::try_from(metadata)
 				.map_err(|_| Error::<T>::MetadataTooLong)?;
 
@@ -201,7 +210,7 @@ pub mod pallet {
 				cid: bounded_cid,
 				encrypted_key: bounded_key,
 				timestamp: frame_system::Pallet::<T>::block_number().saturated_into::<u64>(),
-				source,
+				source: bounded_source,
 				metadata: bounded_metadata,
 			};
 
@@ -212,7 +221,7 @@ pub mod pallet {
 			})?;
 
 			// Emit event
-			Self::deposit_event(Event::ShadowItemStored { who, item_id, cid });
+			Self::deposit_event(Event::ShadowItemStored { who, item_id, cid: cid.clone() });
 
 			Ok(())
 		}
