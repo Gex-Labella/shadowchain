@@ -21,7 +21,7 @@
 
 ## 🌍 **The Vision: Your Digital Shadow, Your Digital Sovereignty**
 
-Shadowchain transforms your digital footprint into a **verifiable, user-owned Web3 identity**. By mirroring your activity into a private Polkadot parachain with encrypted IPFS storage, Shadowchain ensures that your online contributions remain **immutable, censorship-resistant, and cryptographically yours**.
+Shadowchain transforms your digital footprint into a **verifiable, user-owned Web3 identity**. By mirroring your activity into a Polkadot parachain with encrypted IPFS storage, Shadowchain ensures that your online contributions remain **immutable, censorship-resistant, and cryptographically yours**.
 
 > **"Every commit, tweet, and post you make builds your digital legacy. Shadowchain ensures it's truly yours — untouchable, portable, and proof of your impact on the internet."**
 
