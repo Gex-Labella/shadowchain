@@ -1,19 +1,23 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import './styles/shadowchain.css';
+import React, { useEffect } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import "./styles/shadowchain.css";
 
-import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard';
-import OAuthCallback from './pages/OAuthCallback';
-import { useWalletStore } from './store/wallet';
-import { setupPolkadotApi } from './services/polkadot';
+import Landing from "./pages/Landing";
+import Dashboard from "./pages/Dashboard";
+import OAuthCallback from "./pages/OAuthCallback";
+import { useWalletStore } from "./store/wallet";
+import { setupPolkadotApi } from "./services/polkadot";
 
 function App() {
+  console.log("🔍 DEBUG: App component mounted - Version 2.0");
+  console.log("🔍 DEBUG: Build timestamp:", new Date().toISOString());
+
   const { isConnected, initializeWallet } = useWalletStore();
 
   useEffect(() => {
+    console.log("🔍 DEBUG: Initializing wallet and Polkadot API");
     // Initialize wallet on app mount
     initializeWallet();
     // Initialize Polkadot API on app mount
@@ -23,20 +27,17 @@ function App() {
   return (
     <div className="shadow-container">
       <Routes>
-        <Route 
-          path="/" 
-          element={isConnected ? <Navigate to="/dashboard" /> : <Landing />} 
+        <Route
+          path="/"
+          element={isConnected ? <Navigate to="/dashboard" /> : <Landing />}
         />
-        <Route 
-          path="/dashboard" 
-          element={isConnected ? <Dashboard /> : <Navigate to="/" />} 
+        <Route
+          path="/dashboard"
+          element={isConnected ? <Dashboard /> : <Navigate to="/" />}
         />
-        <Route 
-          path="/oauth/callback" 
-          element={<OAuthCallback />} 
-        />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
       </Routes>
-      
+
       <ToastContainer
         position="bottom-right"
         autoClose={5000}

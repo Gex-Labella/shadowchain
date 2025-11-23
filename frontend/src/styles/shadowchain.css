@@ -2,31 +2,8 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap');
 
+/* Shared CSS Variables */
 :root {
-  /* Modern Dark Palette */
-  --bg-primary: #0a0a0b;
-  --bg-secondary: #111113;
-  --bg-tertiary: #18181b;
-  --bg-elevated: #1f1f23;
-  
-  /* Accent Colors - Subtle Neon */
-  --accent-primary: #e770ff;  /* Polkadot purple with modern twist */
-  --accent-secondary: #00d4ff; /* Cyan accent */
-  --accent-success: #10b981;
-  --accent-warning: #f59e0b;
-  --accent-danger: #ef4444;
-  
-  /* Text Hierarchy */
-  --text-primary: #ffffff;
-  --text-secondary: #a1a1aa;
-  --text-tertiary: #71717a;
-  --text-muted: #52525b;
-  
-  /* Borders & Surfaces */
-  --border-default: #27272a;
-  --border-hover: #3f3f46;
-  --surface-glow: rgba(231, 112, 255, 0.1);
-  
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
@@ -55,6 +32,69 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   --shadow-glow: 0 0 30px rgba(231, 112, 255, 0.15);
+}
+
+/* Dark Theme (default) */
+:root,
+:root.dark {
+  /* Modern Dark Palette */
+  --bg-primary: #0a0a0b;
+  --bg-secondary: #111113;
+  --bg-tertiary: #18181b;
+  --bg-elevated: #1f1f23;
+  
+  /* Accent Colors - Subtle Neon */
+  --accent-primary: #e770ff;  /* Polkadot purple with modern twist */
+  --accent-secondary: #00d4ff; /* Cyan accent */
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+  
+  /* Text Hierarchy */
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-muted: #52525b;
+  
+  /* Borders & Surfaces */
+  --border-default: #27272a;
+  --border-hover: #3f3f46;
+  --surface-glow: rgba(231, 112, 255, 0.1);
+  
+  /* Glass effects */
+  --glass-bg: rgba(255, 255, 255, 0.02);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+/* Light Theme */
+:root.light {
+  /* Modern Light Palette */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --bg-elevated: #ffffff;
+  
+  /* Accent Colors - Vibrant */
+  --accent-primary: #e770ff;
+  --accent-secondary: #00d4ff;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+  
+  /* Text Hierarchy */
+  --text-primary: #1a1a1a;
+  --text-secondary: #52525b;
+  --text-tertiary: #71717a;
+  --text-muted: #a1a1aa;
+  
+  /* Borders & Surfaces */
+  --border-default: #e5e7eb;
+  --border-hover: #d1d5db;
+  --surface-glow: rgba(231, 112, 255, 0.15);
+  
+  /* Glass effects */
+  --glass-bg: rgba(0, 0, 0, 0.02);
+  --glass-border: rgba(0, 0, 0, 0.1);
 }
 
 * {
